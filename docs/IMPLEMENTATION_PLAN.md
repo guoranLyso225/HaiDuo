@@ -195,3 +195,6 @@ PWA代码及前端构建通过；离线浏览器1项通过。Docker引擎已自�
 未完成且当前无法独立处理：目标GitHub仓库/连接未提供；.env缺Shopify客户端/回调/加密主密钥、S3桶/访问凭据、AI凭据及模型名称，部署目标/证书/授权未提供。external-acceptance-dependencies.json只记录缺项名，不输出凭据。已向用户询问GitHub仓库URL；不自动开通、购买或发布。下一步接入目标仓库并验证远程Actions，之后按剩余清单真实联调。
 
 本轮未修改业务代码，未重跑41项后端/4项单元/13项浏览器全量，不把昨日结果写成今日执行。备份不含密钥、Redis/RabbitMQ完整容灾、异地加密或生产恢复策略，边界见BACKUP_RESTORE.md。
+## GitHub Actions Node24迁移（2026-11-07）
+
+收到browser失败报告，但提供内容仅为Node20弃用通知，不含失败堆栈，尚不能确认根因。已将checkout4.2.2/setup-node4.4.0/setup-java4.7.1最小升级到固定5.0.0；三者官方action.yml均声明node24。应用Node24.22.1与Java21不变，未启用不安全Node20开关。工作流YAML本地解析通过，未执行远程CI、不声称browser已修复。需用户提供失败运行链接/首个Error日志并推送修改后重新验收。已发现本地origin存在，之前缺仓库的记录现为历史；无全局safe.directory修改，无提交或推送。

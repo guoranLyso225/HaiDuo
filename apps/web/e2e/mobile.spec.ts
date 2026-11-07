@@ -1,0 +1,4 @@
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+test.use({viewport:{width:390,height:844}});
+test('手机登录与导航',async({page})=>{await page.goto(process.env.E2E_BASE_URL || 'http://localhost:5173');await page.getByLabel('账号',{exact:true}).fill('demo1.admin');await page.getByLabel('密码',{exact:true}).fill(readFileSync('../../.demo-password','utf8').trim());await page.getByRole('button',{name:/登\s*录/}).click();await page.getByRole('combobox').first().click();await page.getByText('演示企业1 · ADMIN',{exact:true}).click();await expect(page.getByRole('heading',{name:'经营总览',exact:true})).toBeVisible();await page.getByRole('button',{name:'打开导航'}).click();await page.getByRole('menuitem',{name:'订单',exact:true}).click();await expect(page.getByRole('heading',{name:'订单',exact:true})).toBeVisible();});

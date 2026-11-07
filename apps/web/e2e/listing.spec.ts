@@ -1,0 +1,5 @@
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+test('店铺映射与审计页面',async({page})=>{
+ await page.goto(process.env.E2E_BASE_URL || 'http://localhost:5173');await page.getByLabel('账号',{exact:true}).fill('demo1.admin');await page.getByLabel('密码',{exact:true}).fill(readFileSync('../../.demo-password','utf8').trim());await page.getByRole('button',{name:/登\s*录/}).click();await page.getByRole('combobox').first().click();await page.getByText('演示企业1 · ADMIN',{exact:true}).click();await page.getByRole('menuitem',{name:'店铺',exact:true}).click();await page.getByRole('button',{name:'商品映射'}).first().click();const key='BROWSER-'+Date.now();await page.getByLabel('平台商品标识').fill(key);await page.getByLabel('内部SKU').click();await page.locator('.ant-select-item-option').filter({hasText:'DEMO-BAG'}).click();await page.getByRole('button',{name:'保存映射'}).click();await expect(page.getByRole('cell',{name:key,exact:true})).toBeVisible();await page.locator('.ant-drawer-close').click();await page.getByRole('menuitem',{name:'系统设置',exact:true}).click();await expect(page.getByRole('cell',{name:'LISTING_CREATE',exact:true}).first()).toBeVisible();
+});

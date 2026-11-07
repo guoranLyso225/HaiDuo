@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+.m2/
+.npm-cache/
+.env
+.demo-password
+.auth-check.log
+.seed-check.log
+.session-check.json
+.haiduo-files/
+test-results/
+playwright-report/
+backups/

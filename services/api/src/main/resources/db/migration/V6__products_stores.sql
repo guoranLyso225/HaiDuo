@@ -1,0 +1,10 @@
+CREATE TABLE product(id uuid PRIMARY KEY,tenant_id uuid NOT NULL REFERENCES tenant,name text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,id));
+INSERT INTO product(id,tenant_id,name) SELECT id,tenant_id,name FROM sku;
+ALTER TABLE sku ADD COLUMN product_id uuid;
+UPDATE sku SET product_id=id;
+ALTER TABLE sku ALTER COLUMN product_id SET NOT NULL;
+ALTER TABLE sku ADD FOREIGN KEY(tenant_id,product_id) REFERENCES product(tenant_id,id);
+CREATE TABLE store(id uuid PRIMARY KEY,tenant_id uuid NOT NULL REFERENCES tenant,name text NOT NULL,platform text NOT NULL CHECK(platform IN ('MOCK','SHOPIFY')),connection_status text NOT NULL DEFAULT 'DISABLED' CHECK(connection_status IN ('MOCK','DISABLED')),UNIQUE(tenant_id,name),UNIQUE(tenant_id,id));
+INSERT INTO store(id,tenant_id,name,platform,connection_status) SELECT gen_random_uuid(),tenant_id,store,'MOCK','MOCK' FROM sales_order GROUP BY tenant_id,store;
+ALTER TABLE sales_order ADD FOREIGN KEY(tenant_id,store) REFERENCES store(tenant_id,name);
+CREATE TABLE store_listing(tenant_id uuid NOT NULL,store_id uuid NOT NULL,sku_id uuid NOT NULL,platform_product_id text NOT NULL,PRIMARY KEY(tenant_id,store_id,platform_product_id),FOREIGN KEY(tenant_id,store_id) REFERENCES store(tenant_id,id),FOREIGN KEY(tenant_id,sku_id) REFERENCES sku(tenant_id,id));

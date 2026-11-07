@@ -1,0 +1,2 @@
+package cn.haiduo;
+public class HealthProbe {public static void main(String[] args)throws Exception{var request=java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:8080/healthz")).timeout(java.time.Duration.ofSeconds(3)).build();int code=java.net.http.HttpClient.newHttpClient().send(request,java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();if(code!=200)System.exit(1);}}

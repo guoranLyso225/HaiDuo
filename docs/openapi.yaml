@@ -1,0 +1,444 @@
+openapi: 3.0.3
+info:
+  title: 海舵核心与阶段二接口
+  version: 0.4.0
+  description: 核心闭环契约；完整路径和当前限制见API.md。金额为十进制字符串，租户范围来自会话。
+servers:
+  - url: http://localhost:8088
+security:
+  - session: []
+paths:
+  /api/session/csrf:
+    get:
+      security: []
+      summary: 获取CSRF令牌，登录后需重新获取
+      responses:
+        '200':
+          description: token与headerName
+  /api/session/login:
+    post:
+      security:
+        - csrf: []
+      summary: 服务器会话登录
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: {type: string}
+                password: {type: string, format: password}
+      responses:
+        '204': {description: 登录成功，轮换会话ID}
+        '401': {description: 凭据错误}
+        '403': {description: CSRF无效}
+  /api/products:
+    get:
+      summary: 当前企业SKU服务器分页
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 200}}
+        - {name: search, in: query, schema: {type: string, maxLength: 100}}
+      responses:
+        '200':
+          description: SKU数组，cost是人民币十进制字符串
+          headers:
+            X-Total-Count: {schema: {type: integer}, description: 当前过滤条件总数}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: ADMIN或OPERATIONS创建商品SKU及各仓零库存
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, cost]
+              properties:
+                code: {type: string, pattern: '^[A-Za-z0-9_-]{1,64}$'}
+                name: {type: string, maxLength: 200}
+                cost: {$ref: '#/components/schemas/Decimal'}
+      responses:
+        '201': {description: 新商品id}
+        '409': {description: SKU已存在}
+  /api/orders/import:
+    post:
+      summary: ADMIN或OPERATIONS原子CSV导入，重复订单跳过
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [csv]
+              properties:
+                csv: {type: string, maxLength: 100000, description: 'store,order_no,sku,quantity,net,currency,rate；每单一行'}
+                warehouseId: {type: string, format: uuid, description: 省略时默认仓库}
+      responses:
+        '200': {description: imported和duplicates计数}
+        '400': {description: 格式错误或SKU/店铺不存在}
+        '404': {description: 仓库不属当前企业}
+  /api/orders/{id}/{action}:
+    post:
+      summary: ADMIN或OPERATIONS预占或取消
+      security: [{session: [], csrf: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: action, in: path, required: true, schema: {type: string, enum: [reserve, cancel]}}
+      responses:
+        '200': {description: 成功或相同状态重复请求}
+        '404': {description: 对象不存在或跨企业}
+        '409': {description: 库存不足或状态冲突}
+  /api/orders/{id}/shipment:
+    post:
+      summary: ADMIN或WAREHOUSE整单手工发货
+      security: [{session: [], csrf: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carrier, trackingNumber]
+              properties:
+                carrier: {type: string, maxLength: 100}
+                trackingNumber: {type: string, maxLength: 100}
+      responses:
+        '200': {description: 库存及运单事务成功}
+        '409': {description: 状态或运单冲突}
+  /api/inventory/receipts:
+    post:
+      summary: ADMIN或WAREHOUSE幂等入库
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requestKey, skuId, quantity]
+              properties:
+                requestKey: {type: string, format: uuid}
+                skuId: {type: string, format: uuid}
+                warehouseId: {type: string, format: uuid}
+                quantity: {type: integer, minimum: 1, maximum: 1000000}
+      responses:
+        '200': {description: duplicate标识}
+        '409': {description: 同键不同请求或库存上限}
+  /api/profits:
+    get:
+      summary: ADMIN或FINANCE查询预估人民币经营贡献
+      responses:
+        '200': {description: 十进制字符串金额；缺历史成本时contribution为null，basis为ESTIMATED}
+  /api/sync:
+    get:
+      summary: 管理员和运营读取当前企业最近100条事件和任务
+      responses:
+        '200': {description: outbox与jobs数组，SENT不表示业务完成}
+        '403': {description: 无查看权限}
+  /api/sync/{id}/replay:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员重放失败事件
+      responses:
+        '200': {description: 已重新排队}
+        '403': {description: 无权限}
+        '404': {description: 不存在或不属本企业}
+        '409': {description: 正在处理或已完成}
+  /api/stores/{id}/sync:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 排队读取订单，MOCK为固定模拟
+      responses:
+        '200': {description: QUEUED不表示已导入}
+        '409': {description: Shopify尚未授权或缺同步配置}
+  /api/stores/{id}/sync-settings:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员和财务保存后续新订单使用的仓库与汇率
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [warehouseId, currency, rate, source]
+              properties:
+                warehouseId: {type: string, format: uuid}
+                currency: {type: string, pattern: '^[A-Z]{3}$'}
+                rate: {type: string, example: '7.2'}
+                source: {type: string, maxLength: 100}
+      responses:
+        '200': {description: 已保存，不改写历史汇率}
+        '400': {description: 参数错误或CNY汇率不为1}
+  /api/shopify/{id}/authorize:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员创建只读订单OAuth链接
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop]
+              properties:
+                shop: {type: string, example: example.myshopify.com}
+      responses:
+        '200': {description: url，state绑定当前会话}
+        '503': {description: 缺少真实凭据或配置}
+  /api/shopify/callback:
+    get:
+      summary: 原认证会话的一次性OAuth回调，校验state和HMAC
+      responses:
+        '200': {description: 加密保存令牌并连接店铺}
+        '403': {description: 签名或state无效}
+  /api/webhooks/shopify:
+    post:
+      security: []
+      summary: 原始请求体HMAC验签并可靠落库，后台重新查询权威状态
+      parameters:
+        - {name: X-Shopify-Hmac-Sha256, in: header, required: true, schema: {type: string}}
+        - {name: X-Shopify-Shop-Domain, in: header, required: true, schema: {type: string}}
+        - {name: X-Shopify-Webhook-Id, in: header, required: true, schema: {type: string, maxLength: 128}}
+        - {name: X-Shopify-Event-Id, in: header, schema: {type: string, maxLength: 128}}
+        - {name: X-Shopify-Topic, in: header, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '202': {description: 已可靠接收、重复或不支持topic}
+        '401': {description: 签名无效或店铺未绑定}
+        '413': {description: 请求体超过1MB}
+        '503': {description: 未启用凭据}
+  /api/products/{id}/image:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员或运营上传当前企业SKU图片
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary, description: PNG/JPEG最多2MB及4096像素}
+      responses:
+        '200': {description: 文件id与授权读取url}
+        '400': {description: 非法图片}
+        '404': {description: SKU不存在或不属本企业}
+  /api/files/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      summary: 授权成员读取当前企业文件，no-store
+      responses:
+        '200': {description: PNG/JPEG二进制}
+        '404': {description: 不存在或不属本企业}
+  /api/search:
+    get:
+      summary: 当前企业增强搜索，故障或关闭时降级数据库
+      parameters:
+        - {name: q, in: query, schema: {type: string, maxLength: 100}}
+      responses:
+        '200': {description: engine及最多50条items}
+  /api/search/reindex:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员重建当前企业索引，最多5000商品
+      responses:
+        '200': {description: indexed数量}
+        '503': {description: 增强搜索未启用}
+  /api/ai/status:
+    get:
+      summary: 当前企业AI状态及额度上限
+      responses:
+        '200': {description: mode为DISABLED或FIXED_DEMO或MODEL}
+  /api/ai/knowledge:
+    get:
+      summary: 当前企业知识库文档清单
+      responses:
+        '200': {description: 企业限定文档数组}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员或运营导入文本/Markdown
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, text]
+              properties:
+                title: {type: string, maxLength: 200}
+                text: {type: string, maxLength: 12000}
+      responses:
+        '200': {description: 文档id与切分数量及mode}
+        '429': {description: 超出企业UTC每日100模型调用额度}
+        '503': {description: 模型未启用}
+  /api/ai/ask:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 租户隔离检索并回答，资料不足明确说明
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: {type: string, maxLength: 4000}
+      responses:
+        '200': {description: answer与来源documentId/title/chunk及mode}
+        '503': {description: 模型未启用}
+  /api/ai/drafts:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员或运营生成待审核商品文案，不发布
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skuId, instructions]
+              properties:
+                skuId: {type: string, format: uuid}
+                instructions: {type: string, maxLength: 4000}
+      responses:
+        '200': {description: id/content/PENDING_REVIEW及mode}
+        '404': {description: SKU不存在或不属本企业}
+  /api/roles:
+    get:
+      summary: 管理员读取固定角色及权限
+      responses:
+        '200': {description: 角色与权限清单}
+  /api/shipments/{id}/events:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      summary: 当前企业运单的模拟事件列表
+      responses:
+        '200': {description: 最多200条MOCK事件，包含applied标识}
+        '404': {description: 不存在或不属本企业}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员或仓库提交幂等模拟物流事件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventKey, version, status, occurredAt]
+              properties:
+                eventKey: {type: string, format: uuid}
+                version: {type: integer, minimum: 1}
+                status: {type: string, enum: [IN_TRANSIT, DELIVERED, EXCEPTION]}
+                occurredAt: {type: string, format: date-time}
+      responses:
+        '200': {description: duplicate和applied；旧事件不回退状态}
+        '409': {description: 幂等键或版本冲突}
+  /api/exchange-rate-snapshots:
+    get:
+      summary: 管理员和财务查看当前企业不可变汇率快照
+      responses:
+        '200': {description: 最近200条，rate为十进制字符串}
+  /api/orders/{id}/profit-confirmations:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 人工核对实际经营贡献并追加不可变版本
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requestKey, source]
+              properties:
+                requestKey: {type: string, format: uuid}
+                source: {type: string, minLength: 1, maxLength: 200}
+      responses:
+        '200': {description: MANUALLY_CONFIRMED_ACTUAL，不代表自动结算}
+        '409': {description: 未付款/未发货/退款中/成本或费用不完整/幂等冲突}
+  /api/profit-confirmations:
+    get:
+      summary: 管理员和财务查看当前企业实际贡献版本
+      responses:
+        '200': {description: 最近200条不可变人工确认记录}
+  /api/orders/export.csv:
+    get:
+      summary: 管理员运营财务导出当前企业CSV，默认近30天，最多5000单
+      parameters:
+        - {name: store, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: UTF8 CSV下载，防公式注入，no-store}
+        '409': {description: 超5000单，需缩小时间范围}
+  /api/products/{productId}/skus:
+    parameters:
+      - {name: productId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员或运营在当前企业商品下新增SKU
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, cost]
+              properties:
+                code: {type: string, maxLength: 64}
+                name: {type: string, maxLength: 200}
+                cost: {type: string, example: '200.00'}
+      responses:
+        '201': {description: SKU id及productId}
+        '404': {description: 商品不存在或不属本企业}
+        '409': {description: SKU重复}
+  /api/ai/knowledge/index:
+    get:
+      summary: 管理员查看当前企业派生向量索引状态与主库片段数
+      responses:
+        '200': {description: enabled、chunks、basis；不调用模型}
+        '403': {description: 需要当前企业管理员角色}
+  /api/ai/knowledge/index/rebuild:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员用当前企业主库已有向量重建独立索引并清理孤立记录
+      responses:
+        '200': {description: indexedChunks、modelCalls为0；重复重建不增加向量记录}
+        '403': {description: 需要当前企业管理员角色}
+        '503': {description: 未配置独立向量库，主库检索无需重建}
+        '502': {description: 重建未确认成功，可安全重试}
+components:
+  securitySchemes:
+    session: {type: apiKey, in: cookie, name: SESSION}
+    csrf: {type: apiKey, in: header, name: X-CSRF-TOKEN}
+  schemas:
+    Decimal:
+      type: string
+      pattern: '^[0-9]{1,15}(\.[0-9]{1,4})?$'
+      example: '200.00'

@@ -1,0 +1,72 @@
+name: verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  monitoring:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Validate monitoring configuration
+        run: docker run --rm --entrypoint promtool -v "$PWD/infra/monitoring:/etc/prometheus:ro" prom/prometheus:v3.7.3 check config /etc/prometheus/prometheus.yml
+      - name: Test alert rules
+        run: docker run --rm --entrypoint promtool -v "$PWD/infra/monitoring:/rules:ro" -w /rules prom/prometheus:v3.7.3 test rules alerts.test.yml
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RUN_TESTCONTAINERS: 'true'
+      RUN_DATABASE_TESTS: 'true'
+      RUN_MESSAGING_TESTS: 'true'
+      RUN_SYNC_TESTS: 'true'
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-java@v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: mvn -B -s infra/maven-settings.xml -f services/api/pom.xml '-Dtest=InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest' verify
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24.22.1'
+      - run: npm ci --ignore-scripts
+      - run: npm run test
+      - run: npm run build
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24.22.1'
+      - name: Prepare isolated demo environment
+        run: |
+          password=$(openssl rand -hex 24)
+          printf '%s' "$password" > .demo-password
+          printf 'DB_PASSWORD=%s\nRABBIT_PASSWORD=%s\nDEMO_PASSWORD=%s\nVECTOR_DB_PASSWORD=%s\nCOOKIE_SECURE=false\nAI_DEMO=true\nSEARCH_URL=http://opensearch:9200\nVECTOR_DATABASE_URL=jdbc:postgresql://vector:5432/knowledge\nVECTOR_DB_USER=haiduo\n' "$password" "$password" "$password" "$password" > .env
+      - run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.enhanced.yml --profile search --profile ai up -d --build --wait --wait-timeout 180
+      - working-directory: apps/web
+        run: npm ci --ignore-scripts
+      - working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - working-directory: apps/web
+        env:
+          E2E_BASE_URL: http://localhost:8088
+        run: npx playwright test
+      - name: Backup and isolated restore drill
+        shell: pwsh
+        run: ./infra/verify-backup-restore.ps1 -RunId ci-restore
+      - if: always()
+        run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.enhanced.yml logs --tail 100
+      - if: always()
+        run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.enhanced.yml down

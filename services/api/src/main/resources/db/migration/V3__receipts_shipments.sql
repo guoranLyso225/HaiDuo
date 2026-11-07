@@ -1,0 +1,2 @@
+CREATE TABLE stock_receipt(tenant_id uuid NOT NULL,request_key uuid NOT NULL,sku_id uuid NOT NULL,quantity integer NOT NULL CHECK(quantity>0),created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(tenant_id,request_key),FOREIGN KEY(tenant_id,sku_id) REFERENCES sku(tenant_id,id));
+CREATE TABLE shipment(id uuid PRIMARY KEY,tenant_id uuid NOT NULL,order_id uuid NOT NULL,carrier text NOT NULL,tracking_number text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,order_id),FOREIGN KEY(tenant_id,order_id) REFERENCES sales_order(tenant_id,id));

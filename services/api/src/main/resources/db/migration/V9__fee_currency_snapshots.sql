@@ -1,0 +1,12 @@
+ALTER TABLE order_fee ADD COLUMN original_amount numeric(19,4);
+ALTER TABLE order_fee ADD COLUMN currency text;
+ALTER TABLE order_fee ADD COLUMN exchange_rate numeric(19,8);
+ALTER TABLE order_fee ADD COLUMN rate_source text;
+ALTER TABLE order_fee ADD COLUMN effective_at timestamptz;
+UPDATE order_fee SET original_amount=amount_cny,currency='CNY',exchange_rate=1,rate_source='历史人民币费用',effective_at=now();
+ALTER TABLE order_fee ALTER COLUMN original_amount SET NOT NULL;
+ALTER TABLE order_fee ALTER COLUMN currency SET NOT NULL;
+ALTER TABLE order_fee ALTER COLUMN exchange_rate SET NOT NULL;
+ALTER TABLE order_fee ALTER COLUMN rate_source SET NOT NULL;
+ALTER TABLE order_fee ALTER COLUMN effective_at SET NOT NULL;
+ALTER TABLE order_fee ADD CHECK(original_amount>=0 AND exchange_rate>0);

@@ -1,0 +1,4 @@
+CREATE TABLE outbox_event(id uuid PRIMARY KEY,tenant_id uuid NOT NULL REFERENCES tenant,kind text NOT NULL,target_id text NOT NULL,status text NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','SENT','DEAD')),attempts integer NOT NULL DEFAULT 0,available_at timestamptz NOT NULL DEFAULT now(),created_at timestamptz NOT NULL DEFAULT now(),sent_at timestamptz,UNIQUE(tenant_id,id));
+CREATE INDEX outbox_pending ON outbox_event(available_at) WHERE status='PENDING';
+CREATE TABLE processed_event(tenant_id uuid NOT NULL,event_id uuid NOT NULL,processed_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(tenant_id,event_id),FOREIGN KEY(tenant_id,event_id) REFERENCES outbox_event(tenant_id,id));
+CREATE TABLE sync_job(id uuid PRIMARY KEY,tenant_id uuid NOT NULL,event_id uuid NOT NULL,type text NOT NULL,status text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,event_id),FOREIGN KEY(tenant_id,event_id) REFERENCES outbox_event(tenant_id,id));

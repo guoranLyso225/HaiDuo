@@ -1,0 +1,27 @@
+{
+    "name": "haiduo-web",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host 0.0.0.0",
+        "build": "tsc --noEmit && vite build",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@tanstack/react-query": "5.90.5",
+        "antd": "5.27.6",
+        "echarts": "6.1.0",
+        "react": "19.1.1",
+        "react-dom": "19.1.1",
+        "react-router-dom": "7.18.5"
+    },
+    "devDependencies": {
+        "@playwright/test": "1.56.1",
+        "@types/react": "19.1.16",
+        "@types/react-dom": "19.1.9",
+        "typescript": "5.9.3",
+        "vite": "7.3.7",
+        "vitest": "4.1.12"
+    }
+}

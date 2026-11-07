@@ -1,0 +1,4 @@
+import {formatTime,userTimezone} from './time';
+import {useEffect,useState} from 'react';
+import {Alert,Button,Table} from 'antd';
+export default function AuditLog(){const [rows,setRows]=useState<Record<string,unknown>[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');async function load(){setBusy(true);try{const r=await fetch('/api/audit');if(!r.ok)throw Error(r.status===403?'仅管理员可查看审计记录':'加载失败');setRows(await r.json());setError('');}catch(e){setError(String(e));}finally{setBusy(false);}}useEffect(()=>{void load();},[]);return <><Alert message="审计记录：仅当前企业，最近200条。记录操作人、动作、对象与UTC时间，不记录密码或客户地址。"/>{error&&<Alert type="error" message={error}/>}<Button onClick={()=>void load()} loading={busy}>刷新</Button><Table rowKey="id" loading={busy} dataSource={rows} scroll={{x:true}} columns={[{title:'操作人',dataIndex:'actor'},{title:'操作',dataIndex:'action'},{title:'对象',dataIndex:'target_id'},{title:'时间（本地时区）',dataIndex:'created_at',render:formatTime}]}/></>}

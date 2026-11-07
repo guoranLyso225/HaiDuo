@@ -1,0 +1,4 @@
+import {test,expect,chromium} from '@playwright/test';
+import {mkdirSync,mkdtempSync} from 'node:fs';
+import {resolve} from 'node:path';
+test('Regular browser profile satisfies PWA installability',async()=>{mkdirSync('test-results',{recursive:true});const profile=resolve(mkdtempSync('test-results/pwa-normal-'));const context=await chromium.launchPersistentContext(profile,{headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});try{const page=await context.newPage();await page.goto(process.env.E2E_BASE_URL||'http://localhost:8088');await page.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));const protocol=await context.newCDPSession(page);await expect(async()=>{const result=await protocol.send('Page.getInstallabilityErrors');expect(result.installabilityErrors).toEqual([]);}).toPass({timeout:10000});}finally{await context.close();}});

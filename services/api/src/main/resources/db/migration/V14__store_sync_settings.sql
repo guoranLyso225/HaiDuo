@@ -1,0 +1,3 @@
+CREATE TABLE store_sync_settings(tenant_id uuid NOT NULL,store_id uuid NOT NULL,warehouse_id uuid NOT NULL,PRIMARY KEY(tenant_id,store_id),FOREIGN KEY(tenant_id,store_id) REFERENCES store(tenant_id,id),FOREIGN KEY(tenant_id,warehouse_id) REFERENCES warehouse(tenant_id,id));
+CREATE TABLE store_exchange_rate(tenant_id uuid NOT NULL,store_id uuid NOT NULL,currency text NOT NULL,rate numeric(19,8) NOT NULL CHECK(rate>0),source text NOT NULL,effective_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(tenant_id,store_id,currency),FOREIGN KEY(tenant_id,store_id) REFERENCES store(tenant_id,id));
+ALTER TABLE sales_order ADD COLUMN sync_review_required boolean NOT NULL DEFAULT false;

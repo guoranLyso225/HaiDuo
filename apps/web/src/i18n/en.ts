@@ -1,0 +1,1 @@
+export default {pages:['Overview','Stores','Products','Orders','Inventory','Shipments','Profit','AI assistant','Sync jobs','Settings'],roles:{ADMIN:'Administrator',OPERATIONS:'Operations',WAREHOUSE:'Warehouse',FINANCE:'Finance'},common:{retry:'Retry',loading:'Loading',empty:'No data',forbidden:'Access denied',offline:'Offline: order and inventory writes require a connection'}};

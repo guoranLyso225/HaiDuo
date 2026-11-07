@@ -1,0 +1,75 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: downtime delay and recovery
+    interval: 1m
+    input_series:
+      - series: 'up{job="haiduo",instance="api:9090"}'
+        values: '0x6 1x2'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HaiDuoApiUnavailable
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: HaiDuoApiUnavailable
+        exp_alerts:
+          - exp_labels: {job: haiduo, severity: critical, service: api}
+            exp_annotations:
+              summary: 海舵API监控目标持续不可用
+              description: 抓取失败或目标缺失持续5分钟；检查API、数据库、Redis与监控网络。抓取失败不等于已经确认业务中断。
+      - eval_time: 7m
+        alertname: HaiDuoApiUnavailable
+        exp_alerts: []
+  - name: missing scrape target
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HaiDuoApiUnavailable
+        exp_alerts:
+          - exp_labels: {job: haiduo, severity: critical, service: api}
+            exp_annotations:
+              summary: 海舵API监控目标持续不可用
+              description: 抓取失败或目标缺失持续5分钟；检查API、数据库、Redis与监控网络。抓取失败不等于已经确认业务中断。
+  - name: sustained high error rate
+    interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="haiduo",status="200",uri="/api/orders"}'
+        values: '0+108x20'
+      - series: 'http_server_requests_seconds_count{job="haiduo",status="500",uri="/api/orders"}'
+        values: '0+12x20'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: HaiDuoApiHighErrorRate
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: HaiDuoApiHighErrorRate
+        exp_alerts:
+          - exp_labels: {job: haiduo, severity: warning, service: api}
+            exp_annotations:
+              summary: 海舵API服务端错误率持续偏高
+              description: 最近5分钟HTTP 5xx比例超过5%，流量至少每秒1次，持续10分钟；检查关联请求ID与依赖服务，不重放未知结果的写请求。
+  - name: low traffic suppresses ratio noise
+    interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="haiduo",status="500",uri="/api/orders"}'
+        values: '0+1x20'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HaiDuoApiHighErrorRate
+        exp_alerts: []
+  - name: healthy traffic does not alert
+    interval: 1m
+    input_series:
+      - series: 'up{job="haiduo",instance="api:9090"}'
+        values: '1x20'
+      - series: 'http_server_requests_seconds_count{job="haiduo",status="200",uri="/api/orders"}'
+        values: '0+120x20'
+      - series: 'http_server_requests_seconds_count{job="haiduo",status="500",uri="/api/orders"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HaiDuoApiHighErrorRate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HaiDuoApiUnavailable
+        exp_alerts: []

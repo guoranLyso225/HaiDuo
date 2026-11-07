@@ -1,0 +1,60 @@
+name: haiduo-dev
+services:
+  postgres:
+    extends: {file: compose.dev.yml, service: postgres}
+  redis:
+    extends: {file: compose.dev.yml, service: redis}
+  rabbitmq:
+    extends: {file: compose.dev.yml, service: rabbitmq}
+  api:
+    build: {context: .., dockerfile: services/api/Dockerfile}
+    image: haiduo-api:0.2.0
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/haiduo
+      DB_USER: haiduo
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      REDIS_HOST: redis
+      RABBIT_HOST: rabbitmq
+      RABBIT_USER: haiduo
+      RABBIT_PASSWORD: ${RABBIT_PASSWORD:?Set RABBIT_PASSWORD}
+      MESSAGING_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: ${APP_PROFILE:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?Set DEMO_PASSWORD}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_DEMO: ${AI_DEMO:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      SEARCH_URL: ${SEARCH_URL:-}
+      VECTOR_DATABASE_URL: ${VECTOR_DATABASE_URL:-}
+      VECTOR_DB_USER: ${VECTOR_DB_USER:-}
+      VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD:-}
+      FILE_ROOT: /data/files
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      SHOPIFY_CLIENT_ID: ${SHOPIFY_CLIENT_ID:-}
+      SHOPIFY_CLIENT_SECRET: ${SHOPIFY_CLIENT_SECRET:-}
+      SHOPIFY_REDIRECT_URI: ${SHOPIFY_REDIRECT_URI:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+    volumes: [files-data:/data/files]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+  web:
+    build: {context: .., dockerfile: apps/web/Dockerfile}
+    image: haiduo-web:0.2.0
+    ports: ["127.0.0.1:8088:80"]
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  postgres-data:
+  redis-data:
+  rabbit-data:
+  files-data:

@@ -1,0 +1,21 @@
+services:
+  vector:
+    image: pgvector/pgvector:0.8.1-pg17@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21
+    profiles: [ai]
+    environment:
+      POSTGRES_DB: knowledge
+      POSTGRES_USER: haiduo
+      POSTGRES_PASSWORD: ${VECTOR_DB_PASSWORD:?Set VECTOR_DB_PASSWORD}
+    volumes: [vector-data:/var/lib/postgresql/data]
+  opensearch:
+    image: opensearchproject/opensearch:3.3.2@sha256:798cf28e226a32f5c928dd1ed9478dd3a33d2212176aad3679020088ad3afa1a
+    profiles: [search]
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: 'true'
+      OPENSEARCH_JAVA_OPTS: '-Xms512m -Xmx512m'
+    ports: ['127.0.0.1:9200:9200']
+    volumes: [search-data:/usr/share/opensearch/data]
+volumes:
+  vector-data:
+  search-data:

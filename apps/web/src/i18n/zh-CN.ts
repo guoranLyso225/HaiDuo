@@ -1,0 +1,1 @@
+﻿export default {pages:['经营总览','店铺','商品','订单','库存','物流','利润','AI 助手','同步任务','系统设置'],roles:{ADMIN:'管理员',OPERATIONS:'运营',WAREHOUSE:'仓库',FINANCE:'财务'},common:{retry:'重试',loading:'加载中',empty:'暂无数据',forbidden:'无权限',offline:'当前离线，订单与库存写入必须联网'}};

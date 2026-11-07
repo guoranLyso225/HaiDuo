@@ -1,0 +1,20 @@
+package cn.haiduo;
+import cn.haiduo.inventory.InventoryService;
+import cn.haiduo.audit.Audit;
+import java.util.*;
+import java.security.Principal;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+@RestController @RequestMapping("/api") public class FulfillmentController {
+ private final JdbcTemplate db;private final OperationsController scope;private final InventoryService inventory;
+ public FulfillmentController(JdbcTemplate db,OperationsController scope,InventoryService inventory){this.db=db;this.scope=scope;this.inventory=inventory;}
+ record Receipt(UUID requestKey,UUID skuId,int quantity,UUID warehouseId){}
+ @PostMapping("/inventory/receipts") @Transactional Object receive(@RequestBody Receipt r,Principal p,HttpSession s){UUID t=scope.tenant(p,s,"ADMIN","WAREHOUSE");UUID warehouse=r.warehouseId()==null?UUID.fromString("00000000-0000-0000-0000-000000000001"):r.warehouseId();if(db.queryForObject("select count(*) from warehouse where tenant_id=? and id=?",Integer.class,t,warehouse)!=1)throw new ResponseStatusException(HttpStatus.NOT_FOUND);if(r.requestKey()==null||r.skuId()==null||r.quantity()<1||r.quantity()>1000000)throw new ResponseStatusException(HttpStatus.BAD_REQUEST);if(db.queryForObject("select count(*) from sku where tenant_id=? and id=?",Integer.class,t,r.skuId())!=1)throw new ResponseStatusException(HttpStatus.NOT_FOUND);int added=db.update("insert into stock_receipt(tenant_id,request_key,sku_id,quantity,warehouse_id) values(?,?,?,?,?) on conflict do nothing",t,r.requestKey(),r.skuId(),r.quantity(),warehouse);if(added==1){int updated=db.update("update inventory set on_hand=on_hand+? where tenant_id=? and sku_id=? and warehouse_id=? and on_hand<=?",r.quantity(),t,r.skuId(),warehouse,Integer.MAX_VALUE-r.quantity());if(updated!=1)throw new ResponseStatusException(HttpStatus.CONFLICT,"库存记录缺失或超过数量上限");}else {var old=db.queryForMap("select sku_id,quantity,warehouse_id from stock_receipt where tenant_id=? and request_key=?",t,r.requestKey());if(!old.get("sku_id").equals(r.skuId())||!old.get("quantity").equals(r.quantity())||!old.get("warehouse_id").equals(warehouse))throw new ResponseStatusException(HttpStatus.CONFLICT,"幂等键已用于其他入库请求");}if(added==1)new Audit(db).record(t,p.getName(),"STOCK_RECEIPT",r.requestKey());return Map.of("duplicate",added==0);}
+ record Ship(String carrier,String trackingNumber){}
+ @PostMapping("/orders/{id}/shipment") @Transactional void ship(@PathVariable UUID id,@RequestBody Ship r,Principal p,HttpSession s){UUID t=scope.tenant(p,s,"ADMIN","WAREHOUSE");if(r.carrier()==null||r.carrier().isBlank()||r.carrier().length()>100||r.trackingNumber()==null||r.trackingNumber().isBlank()||r.trackingNumber().length()>100)throw new ResponseStatusException(HttpStatus.BAD_REQUEST);try{inventory.transition(t,id,"ship");}catch(org.springframework.dao.EmptyResultDataAccessException e){throw new ResponseStatusException(HttpStatus.NOT_FOUND);}catch(IllegalStateException e){throw new ResponseStatusException(HttpStatus.CONFLICT,e.getMessage());}int added=db.update("insert into shipment(id,tenant_id,order_id,carrier,tracking_number,created_at) values(?,?,?,?,?,now()) on conflict(tenant_id,order_id) do nothing",UUID.randomUUID(),t,id,r.carrier(),r.trackingNumber());if(added==1)new Audit(db).record(t,p.getName(),"SHIPMENT_CREATE",id);if(added==0){var old=db.queryForMap("select carrier,tracking_number from shipment where tenant_id=? and order_id=?",t,id);if(!old.get("carrier").equals(r.carrier())||!old.get("tracking_number").equals(r.trackingNumber()))throw new ResponseStatusException(HttpStatus.CONFLICT,"订单已使用其他运单发货");}}
+ @GetMapping("/shipments") Object list(Principal p,HttpSession s){return db.queryForList("select id,order_id,carrier,tracking_number,created_at,delivery_status,event_version from shipment where tenant_id=? order by created_at desc limit 200",scope.tenant(p,s));}
+}

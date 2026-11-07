@@ -1,0 +1,4 @@
+ALTER TABLE shipment ADD CONSTRAINT shipment_tenant_id_unique UNIQUE(tenant_id,id);
+ALTER TABLE shipment ADD COLUMN delivery_status text NOT NULL DEFAULT 'CREATED' CHECK(delivery_status IN('CREATED','IN_TRANSIT','DELIVERED','EXCEPTION'));
+ALTER TABLE shipment ADD COLUMN event_version bigint NOT NULL DEFAULT 0;
+CREATE TABLE shipment_event(id uuid PRIMARY KEY,tenant_id uuid NOT NULL,shipment_id uuid NOT NULL,event_key uuid NOT NULL,version bigint NOT NULL CHECK(version>0),status text NOT NULL CHECK(status IN('IN_TRANSIT','DELIVERED','EXCEPTION')),applied boolean NOT NULL,source text NOT NULL CHECK(source='MOCK'),occurred_at timestamptz NOT NULL,received_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,event_key),UNIQUE(tenant_id,shipment_id,version),FOREIGN KEY(tenant_id,shipment_id) REFERENCES shipment(tenant_id,id));

@@ -1,0 +1,8 @@
+services:
+  api:
+    environment:
+      AI_DEMO: 'true'
+      SEARCH_URL: http://host.docker.internal:9200
+      VECTOR_DATABASE_URL: jdbc:postgresql://host.docker.internal:5434/postgres
+      VECTOR_DB_USER: postgres
+      VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD:?Set VECTOR_DB_PASSWORD}

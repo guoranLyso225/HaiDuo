@@ -1,0 +1,13 @@
+package cn.haiduo.fulfillment;
+import cn.haiduo.audit.Audit;
+import java.util.*;
+import java.time.Instant;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+@Service public class TrackingEvents {
+ private final JdbcTemplate db;public TrackingEvents(JdbcTemplate db){this.db=db;}
+ @Transactional public Map<String,Object> accept(UUID tenant,UUID shipment,UUID key,long version,String status,Instant occurred,String actor){if(key==null||version<1||status==null||!Set.of("IN_TRANSIT","DELIVERED","EXCEPTION").contains(status)||occurred==null||occurred.isAfter(Instant.now().plusSeconds(300)))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"模拟事件格式或时间无效");var normalized=new MockCarrierConnector().normalize(new CarrierConnector.Event(key,version,status,occurred));occurred=normalized.occurredAt();status=normalized.status();var rows=db.queryForList("select event_version,delivery_status from shipment where tenant_id=? and id=? for update",tenant,shipment);if(rows.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND);var previous=db.queryForList("select shipment_id,version,status,occurred_at from shipment_event where tenant_id=? and event_key=?",tenant,key);if(!previous.isEmpty()){var old=previous.getFirst();if(!old.get("shipment_id").equals(shipment)||((Number)old.get("version")).longValue()!=version||!old.get("status").equals(status)||!((java.sql.Timestamp)old.get("occurred_at")).toInstant().equals(occurred))throw new ResponseStatusException(HttpStatus.CONFLICT,"事件幂等键内容冲突");return Map.of("duplicate",true,"applied",false);}if(db.queryForObject("select count(*) from shipment_event where tenant_id=? and shipment_id=? and version=?",Integer.class,tenant,shipment,version)>0)throw new ResponseStatusException(HttpStatus.CONFLICT,"事件版本已使用");var current=rows.getFirst();boolean apply=version>((Number)current.get("event_version")).longValue()&&!current.get("delivery_status").equals("DELIVERED");db.update("insert into shipment_event(id,tenant_id,shipment_id,event_key,version,status,applied,source,occurred_at) values(?,?,?,?,?,?,?,'MOCK',?)",UUID.randomUUID(),tenant,shipment,key,version,status,apply,java.sql.Timestamp.from(occurred));if(apply){db.update("update shipment set delivery_status=?,event_version=? where tenant_id=? and id=?",status,version,tenant,shipment);new Audit(db).record(tenant,actor,"MOCK_TRACKING_"+status,shipment);}return Map.of("duplicate",false,"applied",apply);}
+}

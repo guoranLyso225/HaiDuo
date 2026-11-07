@@ -1,0 +1,12 @@
+CREATE TABLE warehouse(tenant_id uuid NOT NULL REFERENCES tenant,id uuid NOT NULL,name text NOT NULL,PRIMARY KEY(tenant_id,id),UNIQUE(tenant_id,name));
+INSERT INTO warehouse SELECT id,'00000000-0000-0000-0000-000000000001'::uuid,'默认仓库' FROM tenant;
+ALTER TABLE inventory ADD COLUMN warehouse_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001';
+ALTER TABLE inventory DROP CONSTRAINT inventory_pkey;
+ALTER TABLE inventory ADD PRIMARY KEY(tenant_id,sku_id,warehouse_id);
+ALTER TABLE inventory ADD FOREIGN KEY(tenant_id,warehouse_id) REFERENCES warehouse(tenant_id,id);
+ALTER TABLE sales_order ADD COLUMN warehouse_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001';
+ALTER TABLE sales_order ADD FOREIGN KEY(tenant_id,warehouse_id) REFERENCES warehouse(tenant_id,id);
+ALTER TABLE stock_receipt ADD COLUMN warehouse_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001';
+ALTER TABLE stock_receipt ADD FOREIGN KEY(tenant_id,warehouse_id) REFERENCES warehouse(tenant_id,id);
+ALTER TABLE inventory_movement ADD COLUMN warehouse_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001';
+ALTER TABLE inventory_movement ADD FOREIGN KEY(tenant_id,warehouse_id) REFERENCES warehouse(tenant_id,id);

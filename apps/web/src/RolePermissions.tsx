@@ -1,0 +1,3 @@
+﻿import {useEffect,useState} from 'react';
+import {Alert,Button,Table} from 'antd';
+export default function RolePermissions(){const [rows,setRows]=useState<{code:string;permissions:string[]}[]>([]),[error,setError]=useState('');async function load(){try{const r=await fetch('/api/roles');if(!r.ok)throw Error(r.status===403?'仅管理员可查看角色权限':'角色权限读取失败');setRows(await r.json());setError('');}catch(e){setError(String(e));}}useEffect(()=>{void load();},[]);return <><Alert message="四类系统角色与明确权限；管理员在企业成员页分配角色。首版不支持自定义角色或在线编辑权限策略。"/>{error&&<Alert type="error" message={error}/>}<Button onClick={()=>void load()}>刷新角色权限</Button><Table rowKey="code" dataSource={rows} columns={[{title:'角色',dataIndex:'code'},{title:'允许权限',dataIndex:'permissions',render:v=>v.join('、')}]}/></>}

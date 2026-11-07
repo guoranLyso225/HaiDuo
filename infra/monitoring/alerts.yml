@@ -1,0 +1,28 @@
+groups:
+  - name: haiduo-api
+    rules:
+      - alert: HaiDuoApiUnavailable
+        expr: min by (job) (up{job="haiduo"}) == 0 or absent(up{job="haiduo"})
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: 海舵API监控目标持续不可用
+          description: 抓取失败或目标缺失持续5分钟；检查API、数据库、Redis与监控网络。抓取失败不等于已经确认业务中断。
+      - alert: HaiDuoApiHighErrorRate
+        expr: |
+          (
+            sum by (job) (rate(http_server_requests_seconds_count{job="haiduo",status=~"5..",uri!~"/actuator.*|/api/health"}[5m]))
+            / clamp_min(sum by (job) (rate(http_server_requests_seconds_count{job="haiduo",uri!~"/actuator.*|/api/health"}[5m])), 0.001)
+            > 0.05
+          )
+          and on (job)
+          (sum by (job) (rate(http_server_requests_seconds_count{job="haiduo",uri!~"/actuator.*|/api/health"}[5m])) >= 1)
+        for: 10m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: 海舵API服务端错误率持续偏高
+          description: 最近5分钟HTTP 5xx比例超过5%，流量至少每秒1次，持续10分钟；检查关联请求ID与依赖服务，不重放未知结果的写请求。

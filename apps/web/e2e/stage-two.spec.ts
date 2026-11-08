@@ -1,13 +1,23 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 test('商品图片授权读取与模拟同步任务',async({page})=>{
+ // Exercise the fresh-CI no-image state even when local demo data has old uploads.
+ let initialFilteredLoad=true;
+ await page.route('**/api/products?**',async route=>{
+  const url=new URL(route.request().url());
+  if(initialFilteredLoad&&url.searchParams.get('search')==='DEMO-BAG'){
+   initialFilteredLoad=false;
+   const response=await route.fetch();
+   await route.fulfill({response,json:(await response.json()).map((product:Record<string,unknown>)=>({...product,imageUrl:null}))});
+  }else await route.continue();
+ });
  await page.goto(process.env.E2E_BASE_URL || 'http://localhost:5173');
  await page.getByLabel('账号',{exact:true}).fill('demo1.admin');await page.getByLabel('密码',{exact:true}).fill(readFileSync('../../.demo-password','utf8').trim());await page.getByRole('button',{name:/登\s*录/,exact:true}).click();await page.getByRole('combobox').first().click();await page.getByText('演示企业1 · ADMIN',{exact:true}).click();
  await page.getByRole('menuitem',{name:'商品',exact:true}).click();
  await page.getByPlaceholder('名称或 SKU，支持分页查询').fill('DEMO-BAG');await page.getByPlaceholder('名称或 SKU，支持分页查询').press('Enter');
  const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=2;c.height=2;const x=c.getContext('2d')!;x.fillStyle='blue';x.fillRect(0,0,2,2);return c.toDataURL('image/png').split(',')[1];});
- const oldImage=await page.locator('table img').first().getAttribute('src').catch(()=>null);const uploaded=page.waitForResponse(r=>r.url().includes('/image')&&r.request().method()==='POST');const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'上传图片',exact:true}).first().click();await(await chooser).setFiles({name:'demo.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});const upload=await uploaded;expect(upload.status()).toBe(200);
- const image=page.locator('table img').first();await expect(image).toBeVisible();if(oldImage)await expect(image).not.toHaveAttribute('src',oldImage);await expect.poll(()=>image.evaluate((i:HTMLImageElement)=>i.naturalWidth)).toBe(2);const url=await image.getAttribute('src');const saved={url:url!};expect(url).toMatch(/^\/api\/files\//);
+ const productRow=page.getByRole('row').filter({has:page.getByRole('cell',{name:'DEMO-BAG',exact:true})});await expect(productRow).toBeVisible();const existingImage=productRow.locator('img');const oldImage=await existingImage.count()?await existingImage.first().getAttribute('src'):null;const uploaded=page.waitForResponse(r=>r.url().includes('/image')&&r.request().method()==='POST');const chooser=page.waitForEvent('filechooser');await productRow.getByRole('button',{name:'上传图片',exact:true}).click();await(await chooser).setFiles({name:'demo.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});const upload=await uploaded;expect(upload.status()).toBe(200);
+ const image=productRow.locator('img');await expect(image).toBeVisible();if(oldImage)await expect(image).not.toHaveAttribute('src',oldImage);await expect.poll(()=>image.evaluate((i:HTMLImageElement)=>i.naturalWidth)).toBe(2);const url=await image.getAttribute('src');const saved={url:url!};expect(url).toMatch(/^\/api\/files\//);
  await expect(image).toHaveAttribute('src',saved.url);const response=await page.request.get(saved.url);expect(response.status()).toBe(200);expect(response.headers()['cache-control']).toContain('no-store');
  const csrf=await(await page.request.get('/api/session/csrf')).json();const invalid=await page.request.post(upload.url(),{headers:{[csrf.headerName]:csrf.token},multipart:{file:{name:'fake.png',mimeType:'image/png',buffer:Buffer.from('invalid-image')}}});expect(invalid.status()).toBe(400);
  await page.getByRole('menuitem',{name:'店铺',exact:true}).click();const row=page.getByRole('row').filter({has:page.getByRole('cell',{name:'mock',exact:true})});await row.getByRole('button',{name:'连接配置',exact:true}).click();await page.getByLabel('同步履约仓库').click();await page.locator('.ant-select-dropdown:visible .ant-select-item-option').first().click();await page.getByLabel('原币币种').fill('USD');await page.getByLabel('CNY/原币汇率').fill('7.2');await page.getByLabel('汇率来源').fill('浏览器验收确认汇率');await page.getByRole('button',{name:'保存同步配置',exact:true}).click();await expect(page.getByText('配置已保存；只影响后续新订单的快照，历史汇率不被改写。',{exact:true})).toBeVisible();await page.locator('.ant-drawer-close').click();await row.getByRole('button',{name:'读取订单',exact:true}).click();

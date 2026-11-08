@@ -2,9 +2,10 @@ param([ValidatePattern('^[a-z0-9-]{1,32}$')][string]$RunId=('drill-'+(Get-Date -
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 Push-Location $root
-$dockerCommand=Get-Command docker.exe -ErrorAction SilentlyContinue
-if(!$dockerCommand){$dockerCommand=Get-Command docker -CommandType Application -ErrorAction Stop}
-$dockerExecutable=$dockerCommand.Source
+$dockerCommand=Get-Command docker.exe -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+if(!$dockerCommand){$dockerCommand=Get-Command docker -CommandType Application -ErrorAction Stop|Select-Object -First 1}
+[string]$dockerExecutable=$dockerCommand.Source
+if([string]::IsNullOrWhiteSpace($dockerExecutable)){throw 'Docker executable not found'}
 $compose=@('compose','--env-file','.env','-f','infra/compose.yml')
 function Docker {
  $saved=$ErrorActionPreference

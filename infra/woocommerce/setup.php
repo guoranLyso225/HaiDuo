@@ -27,6 +27,9 @@ for ($batch = 0; $batch < 10 && $synchronizer->get_total_pending_count() > 0; $b
 if ($synchronizer->get_total_pending_count() > 0) { throw new RuntimeException('Order synchronization unfinished'); }
 require_once WC_ABSPATH . 'includes/wc-template-functions.php';
 WC_Install::newly_installed();
+// On first activation Woo loads after WordPress has already fired init.
+// Register statuses before saving: HPOS must persist wc-pending, not pending.
+WC_Post_Types::register_post_status();
 update_option('woocommerce_currency', 'USD');
 update_option('woocommerce_store_address', '本地开发测试，不处理真实交易');
 update_option('woocommerce_onboarding_profile', ['completed' => true]);
@@ -51,6 +54,22 @@ if (!get_option('haiduo_demo_order_id') || !wc_get_order(get_option('haiduo_demo
     $order->calculate_totals();
     $order->save();
     update_option('haiduo_demo_order_id', $order->get_id(), false);
+}
+$seed = wc_get_order(get_option('haiduo_demo_order_id'));
+global $wpdb;
+if (\Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled()) {
+    $stored_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM {$wpdb->prefix}wc_orders WHERE id = %d", $seed->get_id()));
+    // Repair only our own pending fixture created by the old bootstrap.
+    if ($stored_status === 'pending') {
+        $seed->set_status('on-hold');
+        $seed->save();
+        $seed->set_status('pending');
+        $seed->save();
+    }
+}
+$visible = wc_get_orders(['include' => [$seed->get_id()], 'limit' => 1]);
+if (count($visible) !== 1 || count($visible[0]->get_items()) !== 1) {
+    throw new RuntimeException('Seed order is not visible to standard Woo order queries');
 }
 if (in_array('--credentials', $argv ?? [], true)) {
     $credentials = get_option('haiduo_readonly_api_credentials');

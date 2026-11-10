@@ -245,3 +245,7 @@ PWA代码及前端构建通过；离线浏览器1项通过。Docker引擎已自�
 ## Woo CI空订单失败排查（2026-11-10）
 用户远程日志：Woo连接与配置成功、十次同步HTTP成功，但30秒内订单列表为0，当前根因未确认，不能标记修复。新增失败时/api/sync事件元数据诊断及CI always阶段400行API日志、Outbox/SyncJob/订单状态SQL；不打印连接密钥或客户地址，未放宽原业务断言或延长超时。
 实际验证：Playwright --list成功发现1项，git diff --check退出0。未重新执行端到端业务测试。公开GitHub API返回rate limit exceeded，无法获取该次后台异常；本机Docker原未运行，已有限等待启动成功（29.9.2），当前无业务容器运行，未删除或修改卷。下一步需要失败运行的API Caused by异常，或提交诊断补丁重跑新提交后读取Diagnose local platform event processing步骤；此前本地通过不替代这次CI失败验收。
+
+## Woo CI空订单根因修复（2026-11-10）
+用户新日志：10个STORE_SYNC均SENT/COMPLETED，不是队列未处理。独立空库haiduo-woo-ci-debug复现：HPOS种子订单实际status=pending，wc_get_orders返回[]；初次激活插件在WordPress init之后，未注册wc-*状态。setup.php现显式注册WC_Post_Types::register_post_status()再创建种子，并对旧脚本生成的自有pending测试订单进行受限修复；添加标准订单查询可见性及商品行检查，避免再次假报初始化成功。不修改平台适配器、不增加超时。
+实际验证：旧隔离测试记录修复后HPOS状态wc-pending、标准查询1单；另一全新项目haiduo-woo-ci-fixed首次初始化通过，真实Woo REST控制器GET /wc/v3/orders返回1个pending订单、DEMO-BAG、100.00；重复初始化后相同检查通过。git diff --check通过。未重跑海舵完整浏览器及远程CI；仍需推送setup.php及记录后验证新提交。两个临时项目与其自有四卷经名单核对后清理，原店铺数据保留。

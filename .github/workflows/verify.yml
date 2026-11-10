@@ -36,7 +36,10 @@ jobs:
         shell: pwsh
         run: ./infra/verify-woocommerce-webhooks.ps1 -QueueOnly
       - if: always()
-        run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml logs --tail 50 api
+        name: Diagnose local platform event processing
+        run: |
+          docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml logs --tail 400 api
+          docker compose --env-file .env -f infra/compose.yml exec -T postgres psql -U haiduo -d haiduo -c "select kind,status,count(*) from outbox_event group by kind,status order by kind,status; select type,status,count(*) from sync_job group by type,status; select store,external_id,status,payment_status from sales_order order by created_at;"
       - if: always()
         run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml down
       - if: always()

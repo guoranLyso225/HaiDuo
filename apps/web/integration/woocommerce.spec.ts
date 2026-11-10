@@ -13,7 +13,20 @@ test('本地WooCommerce签名连接、十次同步和企业权限隔离',async({
  await expect(page.getByText(/WooCommerce已验证订单读取权限/)).toBeVisible();
  await page.getByLabel('同步履约仓库').click();await page.getByLabel('同步履约仓库').fill('默认仓库');await page.locator('.ant-select-dropdown:visible').getByText('默认仓库',{exact:true}).click();await page.getByLabel('原币币种').fill('USD');await page.getByLabel('CNY/原币汇率').fill('7.2');await page.getByLabel('汇率来源').fill('本地Woo测试固定汇率');await page.getByRole('button',{name:'保存同步配置',exact:true}).click();await expect(page.getByText('配置已保存；只影响后续新订单的快照，历史汇率不被改写。',{exact:true})).toBeVisible();await page.locator('.ant-drawer-close').click();
  for(let i=0;i<10;i++)expect((await page.request.post('/api/stores/'+storeId+'/sync',{headers})).ok()).toBe(true);
- await expect(async()=>{const orders=await(await page.request.get('/api/orders')).json();expect(orders.filter((o:{store:string})=>o.store===storeName)).toHaveLength(1);}).toPass({timeout:30000});
+ try {
+  await expect(async()=>{const orders=await(await page.request.get('/api/orders')).json();expect(orders.filter((o:{store:string})=>o.store===storeName)).toHaveLength(1);}).toPass({timeout:30000});
+ } catch (failure) {
+  // Only event metadata; never attach credentials or customer payloads.
+  const response=await page.request.get('/api/sync');
+  if(response.ok()){
+   const state=await response.json();
+   console.error('Woo sync diagnostic',JSON.stringify({
+    outbox:state.outbox.filter((e:{kind:string,target_id:string})=>e.kind==='STORE_SYNC'&&e.target_id===storeId),
+    jobs:state.jobs.filter((j:{type:string})=>j.type==='STORE_SYNC')
+   }));
+  }
+  throw failure;
+ }
  const orders=await(await page.request.get('/api/orders')).json();const order=orders.find((o:{store:string})=>o.store===storeName);expect(order.net).toMatch(/^100\.0+$/);expect(order.currency).toBe('USD');
  const b=await login(page.request,'demo2.admin');expect((await page.request.post('/api/woocommerce/'+storeId+'/connect',{headers:{[b.headerName]:b.token},data:{baseUrl:'http://host.docker.internal:8090',...key}})).status()).toBe(404);expect((await(await page.request.get('/api/orders')).json()).some((o:{store:string})=>o.store===storeName)).toBe(false);
  const ops=await login(page.request,'demo1.operations');expect((await page.request.post('/api/woocommerce/'+storeId+'/connect',{headers:{[ops.headerName]:ops.token},data:{baseUrl:'http://host.docker.internal:8090',...key}})).status()).toBe(403);

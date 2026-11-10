@@ -9,7 +9,20 @@ if([string]::IsNullOrWhiteSpace($dockerExecutable)){throw 'Docker executable not
 $compose=@('compose','--env-file','.env','-f','infra/compose.yml')
 function Docker {
  $saved=$ErrorActionPreference
- try{$ErrorActionPreference='Continue';$output=& $dockerExecutable @args 2>&1|ForEach-Object{"$_"};$code=$LASTEXITCODE;if($code){throw "Docker command failed ($code): $($args[0])"};return $output}finally{$ErrorActionPreference=$saved}
+ try{
+  $ErrorActionPreference='Continue'
+  $output=@(& $dockerExecutable @args 2>&1|ForEach-Object{"$_"})
+  $code=$LASTEXITCODE
+  if($code){
+   # Never echo full arguments (they can contain environment credentials).
+   $detail=($output|Select-Object -Last 8)-join "`n"
+   foreach($entry in @($sourceEnvironment)){
+    if($entry -match '^[^=]*(PASSWORD|SECRET|TOKEN|KEY)[^=]*=(.+)$' -and $Matches[2].Length -ge 4){$detail=$detail.Replace($Matches[2],'[REDACTED]')}
+   }
+   throw "Docker command failed ($code), phase=$phase, operation=$($args[0]): $detail"
+  }
+  return $output
+ }finally{$ErrorActionPreference=$saved}
 }
 function Sql($container,$query){return ((Docker exec $container psql -U haiduo -d haiduo -At -v ON_ERROR_STOP=1 -c $query)-join "`n").Trim()}
 function Counts($container){
@@ -28,6 +41,7 @@ $oldPassword=$env:POSTGRES_PASSWORD
 $oldDbPassword=$env:DB_PASSWORD
 $appCreated=$false
 $clock=[Diagnostics.Stopwatch]::StartNew()
+$phase='source inspection'
 try{
  Docker info --format '{{.ServerVersion}}'|Out-Null
  if(Test-Path -LiteralPath $folder){throw 'Backup directory exists; use a new RunId'}
@@ -46,6 +60,7 @@ try{
  $running=((Docker inspect --format '{{.State.Running}}' $api)-join '').Trim()
  if($running-eq 'true'){$resume=$true;Docker stop --time 30 $api|Out-Null}
  try{
+  $phase='source table counts and backup'
   $counts=Counts $pg
   Docker exec $pg pg_dump -U haiduo -d haiduo --format=custom --no-owner --no-acl --file=$temp|Out-Null
   Docker cp "${pg}:$temp" (Join-Path $folder 'database.dump')|Out-Null
@@ -58,18 +73,23 @@ try{
   Docker exec $pg rm -f $temp|Out-Null
  }
  # Restore only into a fresh container without published ports or access to core volumes.
+ $phase='restore database startup'
  $env:POSTGRES_PASSWORD=[guid]::NewGuid().ToString('N')
  Docker run -d --name $target --label haiduo.purpose=restore-drill -e POSTGRES_PASSWORD -e POSTGRES_USER=haiduo -e POSTGRES_DB=haiduo postgres:17.6|Out-Null
  $created=$true
  $deadline=(Get-Date).AddSeconds(60)
- do{try{Docker exec $target pg_isready -U haiduo -d haiduo|Out-Null;$ready=$true}catch{$ready=$false};if(!$ready){Start-Sleep -Seconds 1}}while(!$ready -and (Get-Date)-lt $deadline)
+ # The image uses a temporary Unix-only server during initdb. Wait for the
+ # final TCP listener, so pg_restore cannot race that temporary server shutdown.
+ do{try{Docker exec $target pg_isready -h 127.0.0.1 -U haiduo -d haiduo|Out-Null;$ready=$true}catch{$ready=$false};if(!$ready){Start-Sleep -Seconds 1}}while(!$ready -and (Get-Date)-lt $deadline)
  if(!$ready){throw 'Restore PostgreSQL not ready after 60 seconds'}
  if((Get-FileHash (Join-Path $folder 'database.dump')).Hash-ne $manifest.databaseSha256 -or (Get-FileHash (Join-Path $folder 'files.tar.gz')).Hash-ne $manifest.filesSha256){throw 'Backup checksum mismatch'}
  Docker cp (Join-Path $folder 'database.dump') "${target}:/tmp/database.dump"|Out-Null
+ $phase='pg_restore and restored table counts'
  Docker exec $target pg_restore -U haiduo -d haiduo --exit-on-error --single-transaction --no-owner --no-acl /tmp/database.dump|Out-Null
  $restored=Counts $target
  if(($counts|ConvertTo-Json -Compress)-ne ($restored|ConvertTo-Json -Compress)){throw 'Restored table counts differ'}
  Docker cp (Join-Path $folder 'files.tar.gz') "${target}:/tmp/files.tar.gz"|Out-Null
+ $phase='object archive restore'
  Docker exec $target mkdir /restored-files|Out-Null
  Docker exec $target tar -C /restored-files -xzf /tmp/files.tar.gz|Out-Null
  $restoredHashes=@(Docker exec -w /restored-files $target sh -c 'find . -type f -exec sha256sum {} + | sort')
@@ -77,6 +97,7 @@ try{
  $invalid=Sql $target "select count(*) from inventory where on_hand<0 or reserved<0 or reserved>on_hand"
  if($invalid-ne '0'){throw 'Restored inventory invariant failed'}
  # Start the existing application against restored data, with messaging and AI disabled.
+ $phase='restored application verification'
  $network=((Docker inspect --format '{{json .NetworkSettings.Networks}}' $pg)-join ''|ConvertFrom-Json).PSObject.Properties.Name|Select-Object -First 1
  Docker network connect $network $target|Out-Null
  Docker volume create --label haiduo.purpose=restore-drill $restoreFiles|Out-Null

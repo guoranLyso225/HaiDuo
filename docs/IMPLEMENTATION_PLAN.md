@@ -249,3 +249,7 @@ PWA代码及前端构建通过；离线浏览器1项通过。Docker引擎已自�
 ## Woo CI空订单根因修复（2026-11-10）
 用户新日志：10个STORE_SYNC均SENT/COMPLETED，不是队列未处理。独立空库haiduo-woo-ci-debug复现：HPOS种子订单实际status=pending，wc_get_orders返回[]；初次激活插件在WordPress init之后，未注册wc-*状态。setup.php现显式注册WC_Post_Types::register_post_status()再创建种子，并对旧脚本生成的自有pending测试订单进行受限修复；添加标准订单查询可见性及商品行检查，避免再次假报初始化成功。不修改平台适配器、不增加超时。
 实际验证：旧隔离测试记录修复后HPOS状态wc-pending、标准查询1单；另一全新项目haiduo-woo-ci-fixed首次初始化通过，真实Woo REST控制器GET /wc/v3/orders返回1个pending订单、DEMO-BAG、100.00；重复初始化后相同检查通过。git diff --check通过。未重跑海舵完整浏览器及远程CI；仍需推送setup.php及记录后验证新提交。两个临时项目与其自有四卷经名单核对后清理，原店铺数据保留。
+
+## CI备份恢复exec失败处理（2026-11-10）
+用户提供的错误只有Docker exec退出1，原包装函数吞掉stderr，无法确认具体失败命令。已补执行阶段及末8行Docker错误，不回显完整参数，对源容器PASSWORD/SECRET/TOKEN/KEY环境值脱敏。发现并修复独立竞态：恢复库使用默认Unix socket pg_isready会匹配镜像initdb期间临时服务器，改为-h127.0.0.1等待最终TCP监听；该竞态尚不能仅凭用户片段认定为本次唯一根因。
+实际验证：PowerShell解析、git diff --check通过；独立全新postgres:17.6启动后TCP readiness及紧接select1通过，临时容器已清理。未重跑完整备份恢复演练及远程CI，不能标全通过。下一步提交脚本和记录重跑；若仍失败，phase和底层错误将提供确切诊断。

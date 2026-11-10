@@ -1,0 +1,10 @@
+services:
+  api:
+    environment:
+      WOO_ALLOWED_BASE_URL: http://haiduo-woo-shop-1
+      WOO_SIGNING_BASE_URL: http://localhost:8090
+    networks: [default, woo]
+networks:
+  woo:
+    external: true
+    name: haiduo-woo_default

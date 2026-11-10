@@ -433,6 +433,54 @@ paths:
         '403': {description: 需要当前企业管理员角色}
         '503': {description: 未配置独立向量库，主库检索无需重建}
         '502': {description: 重建未确认成功，可安全重试}
+  /api/woocommerce/status:
+    get:
+      summary: 管理员读取服务端可信WooCommerce地址，不返回密钥
+      responses:
+        '200': {description: baseUrl为空表示尚未启用}
+        '403': {description: 需要企业管理员}
+  /api/woocommerce/{id}/connect:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 验证只读订单访问并加密保存当前企业WooCommerce连接
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseUrl, consumerKey, consumerSecret]
+              properties:
+                baseUrl: {type: string}
+                consumerKey: {type: string, writeOnly: true}
+                consumerSecret: {type: string, writeOnly: true}
+                webhookSecret: {type: string, writeOnly: true, pattern: '^[a-f0-9]{64}$'}
+      responses:
+        '200': {description: 已连接，密钥不回传}
+        '400': {description: 地址不在服务端白名单或输入无效}
+        '403': {description: 非管理员}
+        '404': {description: 对象不属于当前企业或非Woo店铺}
+        '409': {description: 该店铺地址已绑定另一企业或店铺}
+        '502': {description: 订单读取验证失败}
+        '503': {description: 功能或加密密钥未配置}
+  /api/webhooks/woocommerce/{store}:
+    parameters:
+      - {name: store, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      security: []
+      summary: 使用绑定店铺独立密钥验原始请求体HMAC后可靠入队
+      description: 不使用浏览器会话；支持order.created和order.updated；相同原始载荷按企业和店铺去重，后台重新读取权威订单。
+      parameters:
+        - {name: X-WC-Webhook-Signature, in: header, required: true, schema: {type: string}}
+        - {name: X-WC-Webhook-Topic, in: header, required: true, schema: {type: string}}
+        - {name: X-WC-Webhook-Delivery-ID, in: header, required: true, schema: {type: string, maxLength: 128}}
+      responses:
+        '202': {description: 已可靠接收或重复事件；未知topic忽略}
+        '401': {description: 签名或绑定无效}
+        '413': {description: 请求体超过1MB}
+        '503': {description: 尚未配置Webhook密钥}
 components:
   securitySchemes:
     session: {type: apiKey, in: cookie, name: SESSION}

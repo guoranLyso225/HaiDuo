@@ -3,6 +3,44 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  woocommerce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version: '24.22.1'
+      - name: Prepare local-only integration credentials
+        run: |
+          password=$(openssl rand -hex 24)
+          encryption=$(openssl rand -base64 32)
+          printf '%s' "$password" > .demo-password
+          printf 'DB_PASSWORD=%s\nRABBIT_PASSWORD=%s\nDEMO_PASSWORD=%s\nCOOKIE_SECURE=false\nTOKEN_ENCRYPTION_KEY=%s\n' "$password" "$password" "$password" "$encryption" > .env
+      - name: Start local WooCommerce and HaiDuo
+        shell: pwsh
+        run: ./infra/start-woocommerce-link.ps1
+      - working-directory: apps/web
+        run: npm ci --ignore-scripts
+      - working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Verify real local platform connection
+        working-directory: apps/web
+        env:
+          E2E_BASE_URL: http://localhost:8088
+        run: npx playwright test -c playwright.woocommerce.config.ts
+      - name: Verify webhook and fulfillment contribution
+        shell: pwsh
+        run: ./infra/verify-woocommerce-fulfillment.ps1
+      - name: Verify automatic webhook queue delivery
+        shell: pwsh
+        run: ./infra/verify-woocommerce-webhooks.ps1 -QueueOnly
+      - if: always()
+        run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml logs --tail 50 api
+      - if: always()
+        run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml down
+      - if: always()
+        run: docker compose --env-file .woo.env -f infra/compose.woocommerce.yml --profile webhooks down
   monitoring:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -26,7 +64,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: mvn -B -s infra/maven-settings.xml -f services/api/pom.xml '-Dtest=InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest' verify
+      - run: mvn -B -s infra/maven-settings.xml -f services/api/pom.xml '-Dtest=InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest,WooCommerceAdapterTest' verify
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

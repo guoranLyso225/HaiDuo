@@ -125,3 +125,13 @@ AI助手中管理员可重建当前企业已有向量索引并清理孤立记录
 ## 备份与隔离恢复
 
 默认本地存储可执行 ./infra/verify-backup-restore.ps1 -RunId 唯一标识（只允许小写英文、数字及横线）。会短暂停API，自动恢复；备份敏感数据不提交。33表/19文件及恢复应用授权访问已实测，见[备份恢复手册](docs/BACKUP_RESTORE.md)。CI步骤已配置，远程未执行。
+
+
+## 免费本地WooCommerce测试店
+
+执行 ./infra/start-woocommerce.ps1，访问http://localhost:8090/wp-admin/，管理员haiduo_admin，密码位于忽略的.woo.env。两容器和数据卷独立于海舵；已实现只读订单、Webhook、自动队列及本地履约利润联调。见[本地店铺说明](docs/WOOCOMMERCE_LOCAL.md)。
+
+
+## WooCommerce免费本地联调
+
+一键启动./infra/start-woocommerce-link.ps1，海舵8088、店铺8090。ConsumerKey/Secret和Webhook密钥仅保存在忽略的.woo-credentials.json；配置、测试夹具边界及46项后端/13项原浏览器/1项Woo浏览器、自动回调和398元闭环证据见[联调报告](docs/WOOCOMMERCE_INTEGRATION.md)。新增CI作业待本轮代码推送后远程验收。

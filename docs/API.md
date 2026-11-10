@@ -98,3 +98,11 @@ POST /api/products/{productId}/skus：管理员/运营在当前企业商品下�
 ## 知识库索引维护
 
 管理员GET /api/ai/knowledge/index查看配置与片段数，POST /api/ai/knowledge/index/rebuild（CSRF）用当前企业主库已有向量重建独立索引，返回indexedChunks/modelCalls=0。未配置向量库503；操作不调用模型，更换模型仍需重新向量化。角色、事务和验证见[维护说明](KNOWLEDGE_INDEX_MAINTENANCE.md)。
+
+## WooCommerce只读连接与Webhook
+
+新增店铺类型WOOCOMMERCE，管理员GET /api/woocommerce/status读取服务器可信地址；POST /api/woocommerce/{id}/connect提交baseUrl、consumerKey、consumerSecret及可选webhookSecret。密钥不回传，连接请求需会话/CSRF，跨企业对象404、非管理员403；可信源地址唯一绑定，避免同站点跨企业共享。请求失败不记录认证URI，表单提交后清空。
+
+POST /api/webhooks/woocommerce/{store}不依赖浏览器会话，必须用绑定的Webhook密钥对原始body签名，支持order.created/order.updated，限制1MB，202可靠入队/去重。后台读取权威订单；业务载荷去重、同秒状态变化处理及金额口径见WOOCOMMERCE_INTEGRATION.md。海舵只读平台订单，不回写支付、状态或运单。
+
+订单详情增加warehouse_id和明细sku_id，均限定认证企业，用于展示实际履约仓库及恢复演练。

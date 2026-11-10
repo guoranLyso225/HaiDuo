@@ -13,9 +13,10 @@ try{
  Ready $pgName
  Docker run -d --name $apiName --network haiduo-dev_default --env-file .env -e "DATABASE_URL=jdbc:postgresql://${pgName}:5432/haiduo" -e REDIS_HOST=redis -e MESSAGING_ENABLED=false -e AI_ENABLED=false -e AI_DEMO=false -e SEARCH_URL= -e VECTOR_DATABASE_URL= -e TRACING_ENABLED=false -e SPRING_PROFILES_ACTIVE=demo -e COOKIE_SECURE=false --health-cmd 'java -cp /app/health cn.haiduo.HealthProbe' --health-interval 2s --health-timeout 5s haiduo-api:0.2.0|Out-Null
  Ready $apiName
- if((Sql 'select count(*) from flyway_schema_history where success')-ne '20'){throw 'Expected 20 migrations'}
+ $expectedMigrations=(Get-ChildItem services/api/src/main/resources/db/migration -Filter 'V*.sql').Count
+ if((Sql 'select count(*) from flyway_schema_history where success')-ne [string]$expectedMigrations){throw 'Migration count mismatch'}
  foreach($pair in @(@('tenant',2),@('membership',8),@('sku',2),@('sales_order',2),@('exchange_rate_snapshot',6))){if((Sql ('select count(*) from '+$pair[0]))-ne [string]$pair[1]){throw ('Unexpected seed count '+$pair[0])}}
- Write-Output 'PASS: Boot4 empty database, 20 migrations, 2 tenants, 8 roles/accounts, 2 SKUs/orders and 6 rate snapshots'
+ Write-Output 'PASS: Boot4 empty database, all current migrations, 2 tenants, 8 roles/accounts, 2 SKUs/orders and 6 rate snapshots'
  Sql "update inventory set on_hand=97"|Out-Null
  Docker restart $apiName|Out-Null
  Ready $apiName

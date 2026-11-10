@@ -13,6 +13,7 @@ import org.flywaydb.core.Flyway;
 import static org.junit.jupiter.api.Assertions.*;
 @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named="RUN_SYNC_TESTS",matches="true")
 class SyncContainerTest {
+ @Test void sameSecondAuthoritativeChangeStillAppliesOnce(){sync();apply(update("2026-01-03T00:00:00Z","80.00",false));UUID id=order();tx.executeWithoutResult(s->inventory.transition(tenant,id,"reserve"));for(int n=0;n<10;n++)apply(update("2026-01-03T00:00:00Z","0",true));assertEquals("CANCELLED",db.queryForObject("select status from sales_order where id=?",String.class,id));assertEquals(0,db.queryForObject("select reserved from inventory where tenant_id=?",Integer.class,tenant));assertEquals(2,db.queryForObject("select count(*) from inventory_movement where tenant_id=?",Integer.class,tenant));}
  static PostgreSQLContainer pg;static JdbcTemplate db;static TransactionTemplate tx;UUID tenant,store,sku;SyncProcessor processor;InventoryService inventory;
  @BeforeAll static void start(){pg=new PostgreSQLContainer("postgres:17.6").withDatabaseName("haiduo").withUsername("haiduo").withPassword("test-password");pg.start();var ds=new DriverManagerDataSource(pg.getJdbcUrl(),pg.getUsername(),pg.getPassword());Flyway.configure().dataSource(ds).load().migrate();db=new JdbcTemplate(ds);tx=new TransactionTemplate(new DataSourceTransactionManager(ds));}
  @AfterAll static void stop(){if(pg!=null)pg.stop();}

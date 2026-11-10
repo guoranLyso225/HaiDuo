@@ -1,0 +1,63 @@
+name: haiduo-woo
+services:
+  db:
+    image: mariadb:11.4.9@sha256:54ac814d243128263e18cf818f7abb611bf43a7a95ce8aa102d18f527b1516d1
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: ${WOO_DB_PASSWORD:?Set WOO_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${WOO_DB_ROOT_PASSWORD:?Set WOO_DB_ROOT_PASSWORD}
+    volumes: [woo-db:/var/lib/mysql]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  shop:
+    image: wordpress:7.1.4-php8.3-apache@sha256:9001ea7dafd2bc3f05d068e6413b0edd2a116eeed4dfe9e08b6bd718dee4960a
+    ports: ['127.0.0.1:${WOO_HTTP_PORT:-8090}:80']
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${WOO_DB_PASSWORD:?Set WOO_DB_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+      WOO_ADMIN_PASSWORD: ${WOO_ADMIN_PASSWORD:?Set WOO_ADMIN_PASSWORD}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'http://localhost:${WOO_HTTP_PORT:-8090}');
+        define('WP_SITEURL', 'http://localhost:${WOO_HTTP_PORT:-8090}');
+        define('DISALLOW_FILE_EDIT', true);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        define('WP_AUTO_UPDATE_CORE', false);
+        define('DISABLE_WP_CRON', true);
+    volumes:
+      - woo-files:/var/www/html
+      - ./woocommerce/setup.php:/opt/haiduo-woo-setup.php:ro
+      - ./woocommerce/logging.conf:/etc/apache2/conf-enabled/haiduo-logging.conf:ro
+      - ./woocommerce/local-webhooks.php:/var/www/html/wp-content/mu-plugins/haiduo-local-webhooks.php:ro
+      - ./woocommerce/deliver.php:/opt/haiduo-woo-deliver.php:ro
+    depends_on:
+      db: {condition: service_healthy}
+  cron:
+    image: wordpress:7.1.4-php8.3-apache@sha256:9001ea7dafd2bc3f05d068e6413b0edd2a116eeed4dfe9e08b6bd718dee4960a
+    profiles: [webhooks]
+    user: www-data
+    entrypoint: [sh, -c]
+    command: ['while true; do php /var/www/html/wp-cron.php; sleep 30; done']
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${WOO_DB_PASSWORD:?Set WOO_DB_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'http://localhost:${WOO_HTTP_PORT:-8090}');
+        define('WP_SITEURL', 'http://localhost:${WOO_HTTP_PORT:-8090}');
+        define('DISABLE_WP_CRON', true);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        define('WP_AUTO_UPDATE_CORE', false);
+    volumes:
+      - woo-files:/var/www/html
+      - ./woocommerce/local-webhooks.php:/var/www/html/wp-content/mu-plugins/haiduo-local-webhooks.php:ro
+    depends_on: [shop]
+volumes:
+  woo-db:
+  woo-files:

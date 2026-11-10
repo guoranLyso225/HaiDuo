@@ -33,3 +33,9 @@
 金融口径：净收入×当时汇率－采购成本－实际录入的运费/平台费，不含广告、工资、固定开支、税。预估未录费用按0；人工实际确认要求付款、整单发货、无退款且两项费用明确录入（允许0）及成本完整，须核对说明，不宣称自动对账。
 
 原始首版不要求复杂拆单/自动退款对账；平台部分履约或预占后明细变化标记核对，阻止继续预占/发货，不擅自退库。
+
+## WooCommerce连接（V21/V22）
+
+store.platform新增WOOCOMMERCE。woo_connection以(tenant_id,store_id)为主键并复合外键引用store；base_url全局唯一，防止同一来源在不同企业重复绑定。key_cipher、secret_cipher、webhook_cipher均为AES-GCM密文；加密主密钥只来自环境。
+
+Webhook复用webhook_inbox和Outbox：kind=WOO_WEBHOOK，order_gid列作为历史列名，此时存储Woo数字订单ID字符串；event_id为woo:SHA256(raw-body)，唯一范围含tenant/store/topic，delivery_id另有唯一约束。不保存完整原始客户payload。源订单更新时间相同但业务字段变化时重新应用权威状态，完全相同则无副作用；旧时间版本不覆盖。

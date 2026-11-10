@@ -46,3 +46,6 @@ docker compose --env-file .env -f infra/compose.yml up -d --no-build --wait --wa
 工作流已在浏览器验收后加入同一演练，并设置作业超时和只读仓库权限。YAML语法本地解析通过；远程Actions仍缺目标仓库和执行条件，未运行。不要将backups目录上传为CI artifact。
 
 官方依据：[pg_dump17](https://www.postgresql.org/docs/17/app-pgdump.html)、[pg_restore17](https://www.postgresql.org/docs/17/app-pgrestore.html)。
+
+
+2026-11-09核实：GitHub Ubuntu runner上的恢复步骤已通过，提交511f1a4、运行42472427358，证据见remote-ci-acceptance.json。上方远程未执行记录为历史；macOS宿主与生产恢复仍未验证。

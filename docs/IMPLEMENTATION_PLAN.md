@@ -1,5 +1,11 @@
 # 海舵实施记录
 
+当前最新：WooCommerce本地真实联调已完成，46项后端/4项单元/13项原浏览器+1项Woo浏览器、自动Webhook和398元履约闭环通过。见[联调报告](WOOCOMMERCE_INTEGRATION.md)，新增远程CI待本轮推送；下方尚未接通为历史。
+
+最新增量：本地WooCommerce测试店已实际自建并验证后台登录/商品API；尚未接通海舵。见[运行说明](WOOCOMMERCE_LOCAL.md)及文末记录。
+
+当前最新结论（2026-11-09）：已通过GitHub API核实提交511f1a4的四项远程CI及Linux恢复演练全部通过，证据[remote-ci-acceptance.json](remote-ci-acceptance.json)。剩余4组真实外部验收缺配置/权限，详情见文末；下方尚缺远程仓库等为历史。
+
 ## 最新验收顺序与阻塞（2026-11-06）
 
 1. 远程CI：缺目标仓库/连接，未执行；已补只读仓库权限、作业超时及恢复演练步骤，YAML本地解析通过，不标远程通过。
@@ -208,3 +214,30 @@ PWA代码及前端构建通过；离线浏览器1项通过。Docker引擎已自�
 用户提供恢复演练首步失败日志：Get-Command在Linux返回/usr/bin/docker和/bin/docker，Source数组被传给调用运算符后作为一个命令名，导致exit1。两条发现分支现均限定Application并Select-Object -First 1，将最终路径约束为字符串且检查非空。没有更改备份或恢复数据逻辑。
 
 实际验证：直接提取脚本中的发现代码，模拟docker.exe不存在、docker返回两个路径，成功仅选择并调用第一个可执行文件；脚本语法检查通过；本机真实Docker --version调用通过。未在真实Linux runner重跑整套演练，不标远程CI通过。下一步提交修改后触发新工作流，不能重跑旧提交代替新代码验收。
+## 顺序验收：远程CI正式核实（2026-11-09）
+
+通过GitHub公开API实测核实运行42472427358，提交511f1a4950f767ab0c5f5e0197d92efaa228a470：browser/backend/frontend/monitoring四作业均success，Backup and isolated restore drill步骤completed/success。证据remote-ci-acceptance.json。先前缺仓库、远程未运行和Linux恢复未验收的描述为历史；当前该提交的Ubuntu CI/恢复演练已实际通过，不等同macOS宿主或生产部署通过。本轮只读核验，没有触发付费任务或发布。
+
+后续真实验收已检查条件：Shopify缺CLIENT_ID/SECRET/REDIRECT_URI/TOKEN_ENCRYPTION_KEY，S3缺桶与访问凭据，AI缺BASE_URL/API_KEY/聊天和嵌入模型名；部署目标/域名/TLS/授权未提供。不能继续真实平台验收，未调用外部业务或付费模型。现在剩4组外部验收：Shopify、S3、真实模型、部署与环境验收，CI已关闭缺口。
+
+本地Docker当前未启动；本轮未新增业务代码、不需要重跑本机测试。41/4/13为历史本地基线，远程通过以指定提交与作业证据为准，不虚报本轮本地执行。可选增强（定时清理、跨模型重新嵌入、完整英文UI等）仍非首版必需；本轮优先完成真实验收收尾，不将新可选功能冒充已实现。
+## 本地WooCommerce自建（2026-11-09）
+
+代码已编写：独立compose.woocommerce.yml、start-woocommerce.ps1、PHP幂等初始化、凭据模板及中文手册；本地8090、数据库不发布端口、独立卷；密码文件加入Git/Docker忽略，不改海舵.env和数据库。固定WP7.1.4/Woo11.2.2/PHP8.3/MariaDB11.4.9。
+
+实际验证：两容器启动，DEMO-BAG及种子待付款订单初始化，重复启动通过；真实Chrome后台登录及商品Store API通过，证据woocommerce-check.json、woocommerce-verification.log。PHP非Web初始化与首次安装订单存储切换问题已修正，后台最终复验成功；未删库重建。仅配置本机测试，无费用/真实收款/真实发货。
+
+尚未实现：海舵WooCommerce连接器、管理员订单REST认证、Webhook及订单库存联调。下一步扩展平台连接器并验证两系统交互；不能把测试店启动当作海舵接通，也不能把Woo成功当作Shopify验收。41/4/13为海舵历史基线，本轮不重跑未改动业务测试。详见WOOCOMMERCE_LOCAL.md。
+## WooCommerce本地真实连接验收（2026-11-09）
+
+已实现：V21连接表/平台枚举、V22Webhook密钥；只读OAuth1订单适配器（传输与签名地址分离）、可信地址白名单、企业管理员配置/AES-GCM密钥、SKU映射/当前企业回退、BigDecimal收入/商品退款、分页上限/超时重试、原始签名Webhook/业务载荷去重/Outbox权威重取及本地cron；同秒权威变化仍处理，重复状态无重复库存副作用。店铺筛选、仓库搜索和配置反馈已补齐。
+
+实际验证：46项后端零失败/错误/跳过（woo-adapter-backend.log），单元4通过，原浏览器13通过58.1秒（woo-core-browser.log），真实Woo浏览器1通过5.1秒，十次同步一单/企业与角色拒绝；Woo实际十次回调一条处理事件/伪造签名401/库存无副作用；普通更新经cron自动投递通过；模拟付款状态、预占、发货10仅一运单、费用50/72、398元、确认10均通过。独立空库首次及重复建店、Chrome后台登录通过，临时项目/两个卷已清理。默认核心降级通过，当前运行核心5+Woo店铺/DB/cron3服务，数据保留。
+
+新增CI woocommerce作业及35路径OpenAPI、启动/验收脚本、固定摘要镜像。新增作业尚未远程执行；此前511f1a4四作业成功是历史基线，不自动覆盖新代码。详见WOOCOMMERCE_INTEGRATION.md。没有真实付款/邮件/承运商发货或Woo写状态回传；测试订单付款状态为明确夹具。
+
+过程修复：空商品初始化失败记录经条件核实移入回收站，未永久删订单或放松SKU校验；测试快照出现过本地凭据，已撤销旧ConsumerKey并轮换只读密钥，现表单提交即清空/连接toString及网络错误脱敏；Docker访问日志不含查询串，私有文件和测试结果均忽略。现有业务库与店铺数据未清空。
+### 本轮最终核对（2026-11-09）
+重新读取实际日志确认：后端46项零失败/错误/跳过，Woo浏览器1项5.1秒通过；自动cron回调与十次重复回调、履约398CNY验证均通过。YAML三份解析通过，git diff --check退出0（仅LF/CRLF提示）。当前Docker核心5个服务及Woo3个服务运行，所有已配置健康检查均healthy；未重复启动服务、未等待常驻进程退出、未清空业务数据。
+
+当前停止点：本地免费平台演示闭环已完成；真实S3、真实AI、Shopify及正式部署需要外部账号/凭据/目标和授权，不能独立完成。新增Woo GitHub作业尚未远程运行，需提交并推送这批代码后验收，不能引用旧提交成功结果替代。本轮未执行Git提交或推送。下一优先事项：先对本批改动进行远程CI验收，再按需提供真实模型/S3配置；学习展示可直接使用本地Woo及明确标注的AI演示模式。

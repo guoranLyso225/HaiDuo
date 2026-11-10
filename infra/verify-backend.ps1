@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 if ($JavaHome) { $env:JAVA_HOME=$JavaHome; $env:PATH=(Join-Path $JavaHome 'bin')+';'+$env:PATH }
 $root=Split-Path $PSScriptRoot -Parent
 Push-Location $root
-$names='InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest'
+$names='InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest,WooCommerceAdapterTest'
 $keys=@('RUN_TESTCONTAINERS','RUN_DATABASE_TESTS','RUN_MESSAGING_TESTS','RUN_SYNC_TESTS')
 $previous=@{}
 try {

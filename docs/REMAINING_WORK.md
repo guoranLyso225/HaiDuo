@@ -1,3 +1,6 @@
+## 最新状态（2026-11-11）
+用户反馈上次CI修复已完成；此为用户报告，尚未独立核实新运行编号/提交，不以旧511f1a4代替。下文“新增Woo CI待运行”等条目保留为历史，当前应核对最新提交的五作业结果。
+新增只读配置检查：powershell.exe -NoProfile -ExecutionPolicy Bypass -File infra/check-integration-readiness.ps1。仅输出变量名称及缺失/格式状态，不显示值、不调用外部服务，配置齐全不等于联调通过。当前实际检查Shopify、S3、AI均INCOMPLETE；Shopify缺客户端/回调，S3缺桶/区域/访问凭据，AI缺模型地址/凭据/模型名称及部分向量库配置。部署仍缺目标、域名/TLS及授权。免费本地Woo展示不要求开通Shopify。
 # 距离完成还差什么
 
 更新于2026-11-09。按可验收事项衡量，不给缺乏工时/验收依据的百分比。

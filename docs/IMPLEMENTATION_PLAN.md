@@ -253,3 +253,8 @@ PWA代码及前端构建通过；离线浏览器1项通过。Docker引擎已自�
 ## CI备份恢复exec失败处理（2026-11-10）
 用户提供的错误只有Docker exec退出1，原包装函数吞掉stderr，无法确认具体失败命令。已补执行阶段及末8行Docker错误，不回显完整参数，对源容器PASSWORD/SECRET/TOKEN/KEY环境值脱敏。发现并修复独立竞态：恢复库使用默认Unix socket pg_isready会匹配镜像initdb期间临时服务器，改为-h127.0.0.1等待最终TCP监听；该竞态尚不能仅凭用户片段认定为本次唯一根因。
 实际验证：PowerShell解析、git diff --check通过；独立全新postgres:17.6启动后TCP readiness及紧接select1通过，临时容器已清理。未重跑完整备份恢复演练及远程CI，不能标全通过。下一步提交脚本和记录重跑；若仍失败，phase和底层错误将提供确切诊断。
+## 最新状态（2026-11-11）
+用户反馈上次CI修复已完成；此为用户报告，尚未独立核实新运行编号/提交，不以旧511f1a4代替。下文“新增Woo CI待运行”等条目保留为历史，当前应核对最新提交的五作业结果。
+新增只读配置检查：powershell.exe -NoProfile -ExecutionPolicy Bypass -File infra/check-integration-readiness.ps1。仅输出变量名称及缺失/格式状态，不显示值、不调用外部服务，配置齐全不等于联调通过。当前实际检查Shopify、S3、AI均INCOMPLETE；Shopify缺客户端/回调，S3缺桶/区域/访问凭据，AI缺模型地址/凭据/模型名称及部分向量库配置。部署仍缺目标、域名/TLS及授权。免费本地Woo展示不要求开通Shopify。
+
+本轮验证：新脚本实际执行退出0，三组缺失状态已核对且输出未包含密钥值；直接运行受本机PowerShell策略阻止，已用单次进程ExecutionPolicy Bypass执行，未修改系统策略。未重新跑业务构建/端到端、未调用付费API、未部署或推送。停止点是外部凭据及部署条件，不能把离线检查当作连接成功。

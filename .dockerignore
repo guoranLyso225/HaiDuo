@@ -16,3 +16,7 @@
 backups
 .woo.env
 .woo-credentials.json
+/build
+/“
+**/*.log
+**/*.err

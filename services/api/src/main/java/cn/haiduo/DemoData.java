@@ -12,9 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
  public DemoData(JdbcTemplate db,PasswordEncoder passwords){this.db=db;this.passwords=passwords;}
  @Transactional public void run(ApplicationArguments args){
   String password=System.getenv("DEMO_PASSWORD");if(password==null||password.length()<12)throw new IllegalStateException("demo 环境要求 DEMO_PASSWORD 至少12字符");
+  // Explicit local demo convenience account. Reset on every demo startup.
+  db.update("insert into app_user(username,password_hash,enabled) values('admin',?,true) on conflict(username) do update set password_hash=excluded.password_hash,enabled=true",passwords.encode("1234"));
   for(int company=1;company<=2;company++){
    UUID tenant=UUID.nameUUIDFromBytes(("haiduo-demo-"+company).getBytes(java.nio.charset.StandardCharsets.UTF_8));
    db.update("insert into tenant values(?,?) on conflict do nothing",tenant,"演示企业"+company);
+   db.update("insert into membership(username,tenant_id,role) values('admin',?,'ADMIN') on conflict(username,tenant_id) do update set role='ADMIN'",tenant);
    db.update("insert into warehouse values(?,?::uuid,?) on conflict do nothing",tenant,"00000000-0000-0000-0000-000000000001","默认仓库");UUID store=UUID.nameUUIDFromBytes(("haiduo-store-"+company).getBytes(java.nio.charset.StandardCharsets.UTF_8));
    db.update("insert into store values(?,?,?,'MOCK','MOCK') on conflict do nothing",store,tenant,"mock");
    UUID product=UUID.nameUUIDFromBytes(("haiduo-product-"+company).getBytes(java.nio.charset.StandardCharsets.UTF_8));

@@ -14,3 +14,9 @@ playwright-report/
 backups/
 .woo.env
 .woo-credentials.json
+# Local IDE, generated documentation and historical npm cache directory
+.idea/
+/build/
+/“/
+*.log
+*.err

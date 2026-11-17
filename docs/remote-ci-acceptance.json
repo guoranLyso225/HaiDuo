@@ -1,0 +1,212 @@
+﻿{
+    "verifiedUtc":  "2026-11-09T02:00:21.9793912Z",
+    "runId":  42472427358,
+    "commit":  "511f1a4950f767ab0c5f5e0197d92efaa228a470",
+    "url":  "https://github.com/guoranLyso225/HaiDuo/actions/runs/42472427358",
+    "jobs":  [
+                 {
+                     "name":  "browser",
+                     "conclusion":  "success",
+                     "steps":  [
+                                   {
+                                       "name":  "Set up job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/setup-node@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Prepare isolated demo environment",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run docker compose --env-file .env -f infra/compose.yml -f infra/compose.enhanced.yml --profile search --profile ai up -d --build --wait --wait-timeout 180",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run npm ci --ignore-scripts",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run npx playwright install --with-deps chromium",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run npx playwright test",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Backup and isolated restore drill",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run docker compose --env-file .env -f infra/compose.yml -f infra/compose.enhanced.yml logs --tail 100",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run docker compose --env-file .env -f infra/compose.yml -f infra/compose.enhanced.yml down",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/setup-node@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Complete job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "backend",
+                     "conclusion":  "success",
+                     "steps":  [
+                                   {
+                                       "name":  "Set up job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/setup-java@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run mvn -B -s infra/maven-settings.xml -f services/api/pom.xml \u0027-Dtest=InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest\u0027 verify",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/setup-java@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Complete job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "frontend",
+                     "conclusion":  "success",
+                     "steps":  [
+                                   {
+                                       "name":  "Set up job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/setup-node@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run npm ci --ignore-scripts",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run npm run test",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run npm run build",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/setup-node@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Complete job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "monitoring",
+                     "conclusion":  "success",
+                     "steps":  [
+                                   {
+                                       "name":  "Set up job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Validate monitoring configuration",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Test alert rules",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Post Run actions/checkout@v5.0.0",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   },
+                                   {
+                                       "name":  "Complete job",
+                                       "status":  "completed",
+                                       "conclusion":  "success"
+                                   }
+                               ]
+                 }
+             ]
+}

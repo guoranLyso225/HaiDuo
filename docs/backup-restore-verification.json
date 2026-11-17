@@ -1,0 +1,14 @@
+﻿{
+    "verifiedUtc":  "2026-11-06T04:06:03.9511586Z",
+    "runId":  "acceptance-final-20261106",
+    "tables":  33,
+    "files":  19,
+    "inventoryInvariant":  "passed",
+    "archiveChecksums":  "matched",
+    "allTableCounts":  "matched",
+    "objectFileHashes":  "matched",
+    "restoredApplication":  "login, tenant selection and orders passed",
+    "restoredObjectApi":  "authorized download hash matched",
+    "elapsedSeconds":  20.1,
+    "result":  "PASS"
+}

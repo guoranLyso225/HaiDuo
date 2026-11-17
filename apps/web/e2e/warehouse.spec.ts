@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 test('指定仓库入库和履约',async({page})=>{
- const name='WH-'+Date.now(),order='ORDER-'+Date.now();
+ const name='WH-'+Date.now(),order='ORDER-'+Date.now();page.on('response',async r=>{if(new URL(r.url()).pathname==='/api/warehouses')console.log('warehouse-response',r.status(),r.request().method(),await r.text().catch(()=>'<unavailable>'));});
  await page.goto(process.env.E2E_BASE_URL || 'http://localhost:5173');await page.getByLabel('账号',{exact:true}).fill('demo1.admin');await page.getByLabel('密码',{exact:true}).fill(readFileSync('../../.demo-password','utf8').trim());await page.getByRole('button',{name:/登\s*录/}).click();await page.getByRole('combobox').first().click();await page.getByText('演示企业1 · ADMIN',{exact:true}).click();
  await page.getByRole('menuitem',{name:'系统设置',exact:true}).click();await page.getByRole('tab',{name:'仓库管理'}).click();await page.getByPlaceholder('仓库名称').fill(name);await page.getByRole('button',{name:'创建仓库'}).click();await expect(page.getByRole('cell',{name,exact:true})).toBeVisible();
  await page.getByRole('menuitem',{name:'库存',exact:true}).click();await page.getByRole('checkbox',{name:'显示历史测试仓库'}).check();await page.getByRole('combobox',{name:'库存仓库',exact:true}).selectOption({label:name});const stock=page.locator('.ant-table-wrapper').first().getByRole('row').filter({hasText:name}).filter({hasText:'DEMO-BAG'});await stock.getByRole('button',{name:/入\s*库/}).click();await page.getByLabel('入库数量',{exact:true}).fill('10');await page.getByRole('dialog').getByRole('button',{name:'确认',exact:true}).click();await expect(stock).toContainText('10');

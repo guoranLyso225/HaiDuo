@@ -2,7 +2,13 @@
 
 首次使用从[使用手册](USER_GUIDE.md)开始。
 
-后续功能提案见[可用性及分级审批设计](USABILITY_DESIGN.md)。该文档中的审批、编辑和冲销规则尚未实现，不能作为现有功能宣传。
+后续功能提案见[可用性及分级审批设计](USABILITY_DESIGN.md)。除下述SKU首批功能外，通用审批、撤销、冲销等仍未实现。
+
+首批已实现范围见[SKU审批手册](SKU_APPROVALS.md)：SKU名称/成本及职级配置，其他业务审批仍是后续设计。
+
+第二批新增[释放预占与入库冲销](INVENTORY_CORRECTIONS.md)，独立审核后生效，保留流水；通用审批与其他撤销仍未完成。
+
+第三批新增[CSV预览、批次及撤销](CSV_IMPORT_BATCHES.md)，仅无后续业务的新增订单可整批逻辑撤销。
 
 | 目的 | 文档 |
 |---|---|
@@ -18,3 +24,9 @@
 PHASE_*及IMPLEMENTATION_HISTORY为历史阶段记录，不代替当前验收结论。JSON保留实际检查和验收证据，不含真实连接凭据。
 
 2026-11-17整理：172个原始.log/.err文件已从本目录移出，归档于本机`backups/docs-cleanup-20261117/raw-logs.zip`，同目录manifest.json记录逐文件SHA256。已逐项校验归档内容后移除原文件。历史报告里的日志文件名可在该归档查询；归档受Git忽略，不随仓库发布。没有重新执行历史测试。
+
+- [普通入库审批操作与边界](RECEIPT_APPROVALS.md)
+
+- [业务审批、详细编辑和纠错使用手册](BUSINESS_WORKFLOWS.md)
+
+- [提交与GitHub远程验收步骤](GITHUB_RELEASE.md)

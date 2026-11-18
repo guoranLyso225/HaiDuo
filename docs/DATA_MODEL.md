@@ -39,3 +39,21 @@
 store.platform新增WOOCOMMERCE。woo_connection以(tenant_id,store_id)为主键并复合外键引用store；base_url全局唯一，防止同一来源在不同企业重复绑定。key_cipher、secret_cipher、webhook_cipher均为AES-GCM密文；加密主密钥只来自环境。
 
 Webhook复用webhook_inbox和Outbox：kind=WOO_WEBHOOK，order_gid列作为历史列名，此时存储Woo数字订单ID字符串；event_id为woo:SHA256(raw-body)，唯一范围含tenant/store/topic，delivery_id另有唯一约束。不保存完整原始客户payload。源订单更新时间相同但业务字段变化时重新应用权威状态，完全相同则无副作用；旧时间版本不覆盖。
+## V23/V24审批模型
+member_grade以tenant_id/username关联membership，ADMIN固定L4，其他默认L2；sku.version用于并发校验。sku_approval保存申请前后值、申请人、理由、状态、到期及审批信息，tenant_id/sku_id复合外键；tenant/applicant/request_key唯一。审批业务、审计及Outbox同事务；历史order_item成本快照不受修改。
+
+## V25库存纠错
+sales_order.inventory_revision和inventory_movement.cycle标识预占轮次，预占记录可从RELEASED重新预占；旧流水不删除。inventory_correction记录申请/审批，tenant/applicant/request_key唯一。receipt_reversal关联原stock_receipt与纠错申请，tenant/receipt_key主键及tenant/correction_id唯一；数量正值，流水接口显示负值。
+
+## V26 CSV导入批次
+csv_import_batch记录企业/仓库/操作者、请求键、内容摘要、计数和ACTIVE/ROLLED_BACK；原始CSV不存库。csv_import_order仅关联本批新增订单，tenant/order_id唯一，重复旧单不关联。sales_order.import_voided保留逻辑撤销标记。库存纠错枚举扩展CSV_ROLLBACK，批准时行锁全批新订单并检查无后续业务，原订单与快照不删除。
+
+
+## 普通入库职级审批（2026-11-18）
+
+已接入原入库接口：L1仓库员工提交后等待独立仓库主管或管理员批准，批准前库存不变；L2及以上按原职责直接入库。V27 receipt_approval 按企业和请求键唯一，固定申请人和入库参数，重复请求不重复增加库存。系统设置的审批中心新增普通入库审批列表，支持批准、驳回、撤回和24小时过期。详细操作、接口及边界见 [普通入库审批](RECEIPT_APPROVALS.md)。其他普通业务写入尚未全面接入职级审批。
+
+
+## 第五批：业务审批与详细纠错（2026-11-18）
+
+普通业务L1审批、商品资料/编码/归档、订单行编辑及复制、盘点/部分冲销/实物退货、运单更正和成员提级/角色独立审批已编写并专项验收。使用步骤、V28/V29模型、接口、状态与范围以 [业务审批与详细纠错](BUSINESS_WORKFLOWS.md) 为准；较早章节“尚未接入”的说明为历史。待审CSV会保存指定模板载荷，不含客户地址；实物退货不自动退款或改变历史财务确认。完整验收结果见实施记录末尾。

@@ -67,7 +67,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: mvn -B -s infra/maven-settings.xml -f services/api/pom.xml '-Dtest=InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest,WooCommerceAdapterTest' verify
+      - run: mvn -B -s infra/maven-settings.xml -f services/api/pom.xml '-Dtest=InventoryContainerTest,MessagingContainerTest,SyncContainerTest,ShopifyAdapterTest,BlobContractTest,ProfitTest,RequestCorrelationTest,KnowledgeContainerTest,VectorContainerTest,ModelAdapterTest,TrackingSnapshotContainerTest,ArchitectureTest,RoleTest,WooCommerceAdapterTest,ApprovalContainerTest,CorrectionContainerTest,CsvBatchContainerTest,ReceiptApprovalContainerTest,WorkflowContainerTest' verify
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -79,6 +79,8 @@ jobs:
       - uses: actions/setup-node@v5.0.0
         with:
           node-version: '24.22.1'
+      - name: Check release files and migration sequence
+        run: node ../../infra/check-release.mjs
       - run: npm ci --ignore-scripts
       - run: npm run test
       - run: npm run build

@@ -106,3 +106,21 @@ POST /api/products/{productId}/skus：管理员/运营在当前企业商品下�
 POST /api/webhooks/woocommerce/{store}不依赖浏览器会话，必须用绑定的Webhook密钥对原始body签名，支持order.created/order.updated，限制1MB，202可靠入队/去重。后台读取权威订单；业务载荷去重、同秒状态变化处理及金额口径见WOOCOMMERCE_INTEGRATION.md。海舵只读平台订单，不回写支付、状态或运单。
 
 订单详情增加warehouse_id和明细sku_id，均限定认证企业，用于展示实际履约仓库及恢复演练。
+## SKU编辑审批（首批）
+新增REST接口及请求字段见[SKU审批手册](SKU_APPROVALS.md)和openapi.yaml。成本必须用十进制字符串；PENDING不改变SKU，APPLIED才生效。未授权、自审、跨企业、版本过时、幂等键冲突由后端约束。其他业务尚未接入审批。
+
+## 库存纠错审批（第二批）
+接口及操作限制见[库存纠错手册](INVENTORY_CORRECTIONS.md)。新增/api/corrections系列及入库查询，释放后再次预占须提供当前inventory_revision作为revision。GET库存流水包含receipt_reverse负数记录，原流水仍保留。
+
+## CSV预览与批次
+新增POST /api/orders/import/preview只读逐行校验；确认导入新增requestKey及previewDigest，旧客户端可省略保持兼容。GET /api/order-imports及/{id}查询批次。纠错kind新增CSV_ROLLBACK，独立审核且全批无后续业务时逻辑撤销。见CSV_IMPORT_BATCHES.md。
+
+
+## 普通入库职级审批（2026-11-18）
+
+已接入原入库接口：L1仓库员工提交后等待独立仓库主管或管理员批准，批准前库存不变；L2及以上按原职责直接入库。V27 receipt_approval 按企业和请求键唯一，固定申请人和入库参数，重复请求不重复增加库存。系统设置的审批中心新增普通入库审批列表，支持批准、驳回、撤回和24小时过期。详细操作、接口及边界见 [普通入库审批](RECEIPT_APPROVALS.md)。其他普通业务写入尚未全面接入职级审批。
+
+
+## 第五批：业务审批与详细纠错（2026-11-18）
+
+普通业务L1审批、商品资料/编码/归档、订单行编辑及复制、盘点/部分冲销/实物退货、运单更正和成员提级/角色独立审批已编写并专项验收。使用步骤、V28/V29模型、接口、状态与范围以 [业务审批与详细纠错](BUSINESS_WORKFLOWS.md) 为准；较早章节“尚未接入”的说明为历史。待审CSV会保存指定模板载荷，不含客户地址；实物退货不自动退款或改变历史财务确认。完整验收结果见实施记录末尾。

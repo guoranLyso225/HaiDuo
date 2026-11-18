@@ -1,0 +1,4 @@
+ALTER TABLE sku ADD COLUMN version bigint NOT NULL DEFAULT 0;
+CREATE TABLE member_grade(tenant_id uuid NOT NULL,username text NOT NULL,grade integer NOT NULL CHECK(grade BETWEEN 1 AND 4),PRIMARY KEY(tenant_id,username),FOREIGN KEY(username,tenant_id) REFERENCES membership(username,tenant_id));
+CREATE TABLE sku_approval(id uuid PRIMARY KEY,tenant_id uuid NOT NULL,sku_id uuid NOT NULL,applicant text NOT NULL,expected_version bigint NOT NULL,before_name text NOT NULL,before_cost numeric(19,4) NOT NULL,new_name text NOT NULL,new_cost numeric(19,4) NOT NULL CHECK(new_cost>=0),reason text NOT NULL,status text NOT NULL CHECK(status IN('PENDING','APPLIED','REJECTED','WITHDRAWN','STALE','EXPIRED')),reviewer text,comment text,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL DEFAULT now()+interval '24 hours',FOREIGN KEY(tenant_id,sku_id) REFERENCES sku(tenant_id,id));
+CREATE INDEX sku_approval_tenant ON sku_approval(tenant_id,created_at);

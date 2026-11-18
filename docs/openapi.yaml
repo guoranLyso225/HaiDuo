@@ -43,7 +43,7 @@ paths:
         - {name: search, in: query, schema: {type: string, maxLength: 100}}
       responses:
         '200':
-          description: SKU数组，cost是人民币十进制字符串
+          description: SKU数组，cost是人民币十进制字符串，含productName与archived；支持当前编码及历史别名搜索
           headers:
             X-Total-Count: {schema: {type: integer}, description: 当前过滤条件总数}
     post:
@@ -75,15 +75,18 @@ paths:
               type: object
               required: [csv]
               properties:
-                csv: {type: string, maxLength: 100000, description: 'store,order_no,sku,quantity,net,currency,rate；每单一行'}
+                csv: {type: string, maxLength: 100000, description: 'store,order_no,sku,quantity,net,currency,rate；同单可多行SKU，整单金额重复不累加'}
                 warehouseId: {type: string, format: uuid, description: 省略时默认仓库}
+                requestKey: {type: string, format: uuid, description: 同一次确认重试复用}
+                previewDigest: {type: string, minLength: 64, maxLength: 64, description: 预览摘要，确认时重新校验}
       responses:
-        '200': {description: imported和duplicates计数}
+        '200': {description: imported、duplicates、batchId及status；重复请求键返回原批次结果}
         '400': {description: 格式错误或SKU/店铺不存在}
         '404': {description: 仓库不属当前企业}
+        '409': {description: 预览已过时或请求键内容冲突}
   /api/orders/{id}/{action}:
     post:
-      summary: ADMIN或OPERATIONS预占或取消
+      summary: ADMIN或OPERATIONS预占或取消；释放后再次预占正文须提供当前revision
       security: [{session: [], csrf: []}]
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
@@ -94,7 +97,7 @@ paths:
         '409': {description: 库存不足或状态冲突}
   /api/orders/{id}/shipment:
     post:
-      summary: ADMIN或WAREHOUSE整单手工发货
+      summary: ADMIN或WAREHOUSE整单手工发货，L1提交待审批申请
       security: [{session: [], csrf: []}]
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
@@ -113,7 +116,7 @@ paths:
         '409': {description: 状态或运单冲突}
   /api/inventory/receipts:
     post:
-      summary: ADMIN或WAREHOUSE幂等入库
+      summary: ADMIN或WAREHOUSE幂等入库，L1创建待审批申请，L2及以上直接生效
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -128,7 +131,7 @@ paths:
                 warehouseId: {type: string, format: uuid}
                 quantity: {type: integer, minimum: 1, maximum: 1000000}
       responses:
-        '200': {description: duplicate标识}
+        '200': {description: 'id、status及duplicate；PENDING尚未增加库存，APPLIED已生效，终态重复请求不再入库'}
         '409': {description: 同键不同请求或库存上限}
   /api/profits:
     get:
@@ -481,6 +484,332 @@ paths:
         '401': {description: 签名或绑定无效}
         '413': {description: 请求体超过1MB}
         '503': {description: 尚未配置Webhook密钥}
+  /api/approvals/profile:
+    get:
+      summary: 当前企业角色、职级及用户名
+      responses:
+        '200': {description: role、grade、username}
+  /api/approvals/sku/{id}:
+    get:
+      summary: SKU编辑数据及版本（编码只读）
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: id、code、name、cost十进制字符串、version}
+        '404': {description: 当前企业对象不存在}
+  /api/approvals:
+    get:
+      summary: 当前企业SKU申请列表，普通成员仅自己的，主管可查企业记录
+      responses:
+        '200': {description: 最近200条，成本以十进制字符串返回}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: SKU编辑保存或提交审批，禁止绕过财务权限
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skuId, version, name, cost, reason, requestKey]
+              properties:
+                skuId: {type: string, format: uuid}
+                version: {type: integer, format: int64}
+                name: {type: string, maxLength: 200}
+                cost: {$ref: '#/components/schemas/Decimal'}
+                reason: {type: string, maxLength: 500}
+                requestKey: {type: string, format: uuid}
+      responses:
+        '200': {description: id及PENDING或APPLIED，不得将PENDING视作已生效}
+        '403': {description: 无编辑或财务权限}
+        '409': {description: 数据版本或幂等键冲突}
+  /api/approvals/{id}:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 独立审批、驳回或申请人撤回，同事务执行，重复审批不重复生效
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: {type: string, enum: [approve, reject, withdraw]}
+                comment: {type: string, maxLength: 500}
+      responses:
+        '200': {description: APPLIED、STALE、EXPIRED、WITHDRAWN或REJECTED等当前状态}
+        '403': {description: 自审、职级或职责不足}
+        '404': {description: 当前企业申请不存在}
+  /api/approvals/grade:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员配置其他非管理员职级，上调须独立管理员批准，下调直接生效
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, grade]
+              properties:
+                username: {type: string}
+                grade: {type: integer, minimum: 1, maximum: 3}
+      responses:
+        '200': {description: 'APPLIED已生效或PENDING待独立管理员审批，禁止自我提级'}
+        '403': {description: 仅企业管理员可配置}
+  /api/corrections:
+    get:
+      summary: 当前企业库存纠错申请，普通成员仅自己的，主管可查企业记录
+      responses:
+        '200': {description: 最近200条申请及当前单据明细}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 申请释放预占、整笔入库冲销或CSV批次撤销，所有职级均待独立审批
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, targetId, reason, requestKey]
+              properties:
+                kind: {type: string, enum: [RELEASE, RECEIPT_REVERSE, CSV_ROLLBACK]}
+                targetId: {type: string, format: uuid}
+                reason: {type: string, maxLength: 500}
+                requestKey: {type: string, format: uuid}
+      responses:
+        '200': {description: id及PENDING，库存尚未改变}
+        '403': {description: 职责权限不足}
+        '404': {description: 当前企业对象不存在}
+        '409': {description: 不可操作状态或请求键冲突}
+  /api/corrections/{id}:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 独立审核纠错，申请与业务状态加锁，同事务执行
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: {type: string, enum: [approve, reject, withdraw]}
+                comment: {type: string, maxLength: 500}
+      responses:
+        '200': {description: 当前状态，APPLIED才改变业务；重复审核无重复副作用}
+        '403': {description: 自审、职级或职责不符}
+        '404': {description: 当前企业申请不存在}
+        '409': {description: 库存不足或预占不一致，全部回滚且申请仍待处理}
+  /api/corrections/receipts:
+    get:
+      summary: ADMIN或WAREHOUSE查询当前仓库入库与冲销状态
+      parameters:
+        - {name: warehouseId, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: 最近200笔入库，不含其他企业数据}
+        '403': {description: 无入库查询权限}
+  /api/orders/import/preview:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: ADMIN或OPERATIONS只读CSV预览，不创建订单或批次
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [csv]
+              properties:
+                csv: {type: string, maxLength: 100000}
+                warehouseId: {type: string, format: uuid}
+      responses:
+        '200': {description: orders、逐行errors、imported、duplicates、digest、canImport；错误时整批不能确认}
+        '400': {description: 请求过长或无效}
+        '404': {description: 当前企业仓库不存在}
+  /api/order-imports:
+    get:
+      summary: ADMIN或OPERATIONS查询当前企业最近200个CSV批次
+      responses:
+        '200': {description: 批次编号、创建人、仓库、新增/重复计数及状态，不存储原始CSV}
+        '403': {description: 角色无权限}
+  /api/order-imports/{id}:
+    get:
+      summary: 批次详情及当前可撤销条件，仅列本批真正新增订单
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: batch、orders、blocked、canRollback及pending；撤销仍需独立审批}
+        '404': {description: 当前企业批次不存在}
+  /api/receipt-approvals:
+    get:
+      summary: 当前企业普通入库审批，普通成员仅本人，主管可看当前企业最近200条
+      responses:
+        '200': {description: 申请键、SKU、仓库、数量、申请人、状态、意见及时间}
+  /api/receipt-approvals/{id}:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 独立仓库主管或管理员审批普通入库，申请人可撤回
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: {type: string, enum: [approve, reject, withdraw]}
+                comment: {type: string, maxLength: 500}
+      responses:
+        '200': {description: status；重复处理不重复增加库存}
+        '403': {description: 职责或职级不足、自审、申请人权限已撤回}
+        '404': {description: 当前企业申请不存在}
+        '409': {description: 库存超过上限，事务回滚且保持待审批}
+  /api/workflows:
+    get:
+      summary: 当前企业通用业务审批，普通成员仅本人，主管最近200条
+      responses:
+        '200': {description: 固定申请载荷、提交时状态、审批人、结果及时间；不含密码或凭据}
+  /api/workflows/{id}:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 独立合格主管审批，权限变更须独立管理员；业务与状态同事务
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: {type: string, enum: [approve, reject, withdraw]}
+                comment: {type: string, maxLength: 500}
+      responses:
+        '200': {description: status及可选result；APPLIED、REJECTED、WITHDRAWN、EXPIRED、STALE，重复不重做}
+        '403': {description: 自审、职责或等级不足、成员权限已撤销}
+        '404': {description: 当前企业申请不存在}
+        '409': {description: 业务执行条件冲突，事务回滚且申请保持待审批}
+  /api/workflows/{id}/resubmit:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 申请人对驳回、撤回或过期申请重新提交，重复调用返回同一后继请求
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: 新申请或已生效结果，原申请历史保留}
+        '409': {description: 状态已变化时须回原页面重新编辑或预览}
+  /api/business-edits:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 编辑商品/订单/运单或申请归档、别名、盘点、部分冲销、退货；按职级及类别审批
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, targetId, version, requestKey, reason]
+              properties:
+                kind: {type: string, enum: [PRODUCT_EDIT, PRODUCT_ARCHIVE, SKU_CODE, STOCK_COUNT, RECEIPT_PARTIAL, RETURN_RECEIVE, SHIPMENT_EDIT, ORDER_EDIT, ORDER_COPY, PRODUCT_IMAGE]}
+                targetId: {type: string, format: uuid}
+                version: {type: integer, minimum: 0, description: 商品资料版本或SKU版本、订单inventory_revision、运单edit_version}
+                requestKey: {type: string, format: uuid}
+                reason: {type: string, minLength: 1, maxLength: 500}
+                name: {type: string, maxLength: 200}
+                code: {type: string, maxLength: 64}
+                archived: {type: boolean}
+                quantity: {type: integer, minimum: 1, maximum: 1000000}
+                counted: {type: integer, minimum: 0, maximum: 2147483647}
+                expectedOnHand: {type: integer, minimum: 0}
+                expectedReserved: {type: integer, minimum: 0}
+                warehouseId: {type: string, format: uuid}
+                carrier: {type: string, maxLength: 100}
+                trackingNumber: {type: string, maxLength: 100}
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [skuId, quantity]
+                    properties:
+                      skuId: {type: string, format: uuid}
+                      quantity: {type: integer, minimum: 1, maximum: 1000000}
+      responses:
+        '200': {description: id及PENDING或APPLIED；HTTP成功不等于业务已生效}
+        '403': {description: 无对应职责}
+        '404': {description: 对象不在当前企业}
+        '409': {description: 版本、状态、可用库存、数量上限或别名占用冲突}
+  /api/business-edits/{sku}:
+    get:
+      summary: 当前企业商品资料及SKU版本，供编辑刷新
+      parameters:
+        - {name: sku, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: SKU与商品资料名称、编码、版本及归档状态}
+        '404': {description: 当前企业SKU不存在}
+  /api/business-edits/order-lines/{id}:
+    get:
+      summary: 当前企业订单SKU明细，采购快照以十进制字符串返回
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: SKU数组，其他企业对象无数据}
+  /api/business-edits/history/{target}:
+    get:
+      summary: 当前企业对象最近200条修改历史，保留前后状态、原因及人员
+      parameters:
+        - {name: target, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 修改历史，其他企业对象无数据}
+
+  /api/members:
+    get:
+      summary: 管理员读取当前企业成员
+      responses:
+        '200': {description: username与role数组}
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 管理员创建本企业普通成员；请求ADMIN时先创建运营身份并申请独立授权
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, role]
+              properties:
+                username: {type: string, minLength: 3, maxLength: 64}
+                password: {type: string, minLength: 12, description: 不写入审批正文，仅保存BCrypt密码哈希}
+                role: {type: string, enum: [ADMIN, OPERATIONS, WAREHOUSE, FINANCE]}
+      responses:
+        '200': {description: APPLIED普通成员已创建，或PENDING管理员授权待批准}
+        '409': {description: 账号已存在，不能绑定其他已有账号}
+  /api/members/role:
+    post:
+      security: [{session: [], csrf: []}]
+      summary: 成员角色变更需另一管理员审核，执行时重新校验最后管理员约束
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, role]
+              properties:
+                username: {type: string}
+                role: {type: string, enum: [ADMIN, OPERATIONS, WAREHOUSE, FINANCE]}
+      responses:
+        '200': {description: PENDING或相同角色的APPLIED}
+        '403': {description: 非当前企业管理员}
+        '404': {description: 成员不在当前企业}
 components:
   securitySchemes:
     session: {type: apiKey, in: cookie, name: SESSION}

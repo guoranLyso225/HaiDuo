@@ -1,0 +1,46 @@
+package cn.haiduo;
+
+import cn.haiduo.audit.Audit;
+import cn.haiduo.inventory.InventoryService;
+import java.security.Principal;
+import java.util.*;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+@RestController @RequestMapping("/api/corrections")
+public class InventoryCorrections {
+ private final JdbcTemplate db;private final OperationsController scope;private final InventoryService inventory;
+ public InventoryCorrections(JdbcTemplate db,OperationsController scope,InventoryService inventory){this.db=db;this.scope=scope;this.inventory=inventory;}
+ void fail(HttpStatus status,String message){throw new ResponseStatusException(status,message);}
+ String role(UUID t,String user){return db.query("select role from membership where tenant_id=? and username=?",(rs,n)->rs.getString(1),t,user).stream().findFirst().orElseThrow(()->new ResponseStatusException(HttpStatus.FORBIDDEN,"成员权限已撤销"));}
+ int grade(UUID t,String user){return db.queryForObject("select coalesce((select case when m.role='ADMIN' then 4 else coalesce(g.grade,2) end from membership m left join member_grade g on g.tenant_id=m.tenant_id and g.username=m.username where m.tenant_id=? and m.username=?),0)",Integer.class,t,user);}
+ boolean allowed(String kind,String role){if(role.equals("ADMIN"))return true;if(kind.equals("CSV_ROLLBACK"))return role.equals("OPERATIONS");return role.equals("WAREHOUSE")||kind.equals("RELEASE")&&role.equals("OPERATIONS");}
+ UUID tenant(Principal p,HttpSession s){UUID t=scope.tenant(p,s);db.queryForObject("select id from tenant where id=? for no key update",UUID.class,t);scope.tenant(p,s);return t;}
+ @GetMapping Object list(Principal p,HttpSession s){UUID t=scope.tenant(p,s);return db.queryForList("select c.*,coalesce(o.external_id,k.code,'CSV-'||left(b.id::text,8)) as target_label,b.imported as batch_orders,w.name as warehouse_name,r.quantity as receipt_quantity,(select string_agg(s.code||' × '||i.quantity::text,'；' order by s.code) from order_item i join sku s on s.id=i.sku_id and s.tenant_id=i.tenant_id where i.tenant_id=c.tenant_id and i.order_id=o.id) as order_lines from inventory_correction c left join sales_order o on c.kind='RELEASE' and o.id=c.target_id and o.tenant_id=c.tenant_id left join stock_receipt r on c.kind='RECEIPT_REVERSE' and r.request_key=c.target_id and r.tenant_id=c.tenant_id left join sku k on k.id=r.sku_id and k.tenant_id=r.tenant_id left join csv_import_batch b on c.kind='CSV_ROLLBACK' and b.id=c.target_id and b.tenant_id=c.tenant_id left join warehouse w on w.tenant_id=c.tenant_id and w.id=coalesce(o.warehouse_id,r.warehouse_id,b.warehouse_id) where c.tenant_id=? and (c.applicant=? or ?>=3) order by c.created_at desc limit 200",t,p.getName(),grade(t,p.getName()));}
+ @GetMapping("/receipts") Object receipts(@RequestParam UUID warehouseId,Principal p,HttpSession s){UUID t=scope.tenant(p,s,"ADMIN","WAREHOUSE");return db.queryForList("select r.request_key as id,r.sku_id,r.quantity,r.warehouse_id,r.created_at,k.code,coalesce((select sum(a.quantity) from business_adjustment a where a.tenant_id=r.tenant_id and a.target_id=r.request_key and a.kind='RECEIPT_PARTIAL'),0) as partial_quantity,exists(select 1 from receipt_reversal v where v.tenant_id=r.tenant_id and v.receipt_key=r.request_key) as reversed from stock_receipt r join sku k on k.tenant_id=r.tenant_id and k.id=r.sku_id where r.tenant_id=? and r.warehouse_id=? order by r.created_at desc limit 200",t,warehouseId);}
+ record Request(String kind,UUID targetId,String reason,UUID requestKey){}
+ @PostMapping @Transactional Object submit(@RequestBody Request r,Principal p,HttpSession s){
+  UUID t=tenant(p,s);if(r.kind()==null||!Set.of("RELEASE","RECEIPT_REVERSE","CSV_ROLLBACK").contains(r.kind())||r.targetId()==null||r.requestKey()==null||r.reason()==null||r.reason().isBlank()||r.reason().length()>500)fail(HttpStatus.BAD_REQUEST,"请填写有效操作和原因");if(!allowed(r.kind(),role(t,p.getName())))fail(HttpStatus.FORBIDDEN,"无对应业务申请权限");
+  var existing=db.queryForList("select id,status,kind,target_id,reason from inventory_correction where tenant_id=? and applicant=? and request_key=?",t,p.getName(),r.requestKey());if(!existing.isEmpty()){var saved=existing.getFirst();if(!saved.get("kind").equals(r.kind())||!saved.get("target_id").equals(r.targetId())||!saved.get("reason").equals(r.reason().trim()))fail(HttpStatus.CONFLICT,"请求键不能用于不同操作");return Map.of("id",saved.get("id"),"status",saved.get("status"));}
+  long revision=0;
+  if(r.kind().equals("RELEASE")){var rows=db.queryForList("select status,inventory_revision from sales_order where tenant_id=? and id=? for update",t,r.targetId());if(rows.isEmpty())fail(HttpStatus.NOT_FOUND,"订单不存在");if(!rows.getFirst().get("status").equals("RESERVED"))fail(HttpStatus.CONFLICT,"仅已预占订单可申请释放");revision=((Number)rows.getFirst().get("inventory_revision")).longValue();}
+  else if(r.kind().equals("CSV_ROLLBACK")){new CsvBatchService(db).validateRequest(t,r.targetId());}else{if(db.queryForObject("select count(*) from stock_receipt where tenant_id=? and request_key=?",Integer.class,t,r.targetId())!=1)fail(HttpStatus.NOT_FOUND,"入库记录不存在");if(db.queryForObject("select count(*) from receipt_reversal where tenant_id=? and receipt_key=?",Integer.class,t,r.targetId())!=0)fail(HttpStatus.CONFLICT,"入库已冲销");}
+  UUID id=UUID.randomUUID();db.update("insert into inventory_correction(id,tenant_id,kind,target_id,expected_revision,applicant,request_key,reason) values(?,?,?,?,?,?,?,?)",id,t,r.kind(),r.targetId(),revision,p.getName(),r.requestKey(),r.reason().trim());new Audit(db).record(t,p.getName(),"CORRECTION_REQUEST",id);return Map.of("id",id,"status","PENDING");
+ }
+ record Decision(String action,String comment){}
+ @PostMapping("/{id}") @Transactional Object decide(@PathVariable UUID id,@RequestBody Decision r,Principal p,HttpSession s){
+  UUID t=tenant(p,s);var rows=db.queryForList("select *,expires_at<=now() as expired from inventory_correction where tenant_id=? and id=? for update",t,id);if(rows.isEmpty())fail(HttpStatus.NOT_FOUND,"申请不存在");var a=rows.getFirst();String applicant=(String)a.get("applicant"),kind=(String)a.get("kind");
+  if(r.action()==null||!Set.of("approve","reject","withdraw").contains(r.action())||r.comment()!=null&&r.comment().length()>500)fail(HttpStatus.BAD_REQUEST,"无效操作或意见过长");
+  if(r.action().equals("withdraw")){if(!applicant.equals(p.getName()))fail(HttpStatus.FORBIDDEN,"仅申请人可撤回");}else{if(applicant.equals(p.getName()))fail(HttpStatus.FORBIDDEN,"禁止自审");if(!allowed(kind,role(t,p.getName()))||r.action().equals("approve")&&!allowed(kind,role(t,applicant)))fail(HttpStatus.FORBIDDEN,"职责不符或申请人权限已撤回");if(grade(t,p.getName())<3||grade(t,p.getName())<grade(t,applicant))fail(HttpStatus.FORBIDDEN,"审批职级不足");}
+  if(!a.get("status").equals("PENDING"))return Map.of("status",a.get("status"));String status;
+  if(Boolean.TRUE.equals(a.get("expired")))status="EXPIRED";else if(r.action().equals("withdraw"))status="WITHDRAWN";else if(r.action().equals("reject")){if(r.comment()==null||r.comment().isBlank())fail(HttpStatus.BAD_REQUEST,"请填写驳回原因");status="REJECTED";}else status=apply(t,a,p.getName());
+  db.update("update inventory_correction set status=?,reviewer=?,comment=?,reviewed_at=now() where tenant_id=? and id=?",status,p.getName(),r.comment(),t,id);new Audit(db).record(t,p.getName(),"CORRECTION_"+status,id);return Map.of("status",status);
+ }
+ String apply(UUID t,Map<String,Object> a,String actor){UUID target=(UUID)a.get("target_id");if(a.get("kind").equals("CSV_ROLLBACK"))return new CsvBatchService(db).rollback(t,target,actor);if(a.get("kind").equals("RELEASE")){var order=db.queryForMap("select status,inventory_revision from sales_order where tenant_id=? and id=? for update",t,target);long revision=((Number)a.get("expected_revision")).longValue();if(!order.get("status").equals("RESERVED")||((Number)order.get("inventory_revision")).longValue()!=revision)return "STALE";try{inventory.release(t,target,revision);}catch(IllegalStateException e){fail(HttpStatus.CONFLICT,e.getMessage());}return "APPLIED";}
+  var receipt=db.queryForMap("select * from stock_receipt where tenant_id=? and request_key=? for update",t,target);if(db.queryForObject("select count(*) from receipt_reversal where tenant_id=? and receipt_key=?",Integer.class,t,target)>0)return "STALE";if(db.queryForObject("select count(*) from business_adjustment where tenant_id=? and target_id=? and kind='RECEIPT_PARTIAL'",Integer.class,t,target)>0)return "STALE";int quantity=((Number)receipt.get("quantity")).intValue();int changed=db.update("update inventory set on_hand=on_hand-? where tenant_id=? and sku_id=? and warehouse_id=? and on_hand-reserved>=?",quantity,t,receipt.get("sku_id"),receipt.get("warehouse_id"),quantity);if(changed!=1)fail(HttpStatus.CONFLICT,"可用库存不足以整笔冲销，业务未生效；请核对后重试或驳回");db.update("insert into receipt_reversal(tenant_id,receipt_key,correction_id,sku_id,warehouse_id,quantity) values(?,?,?,?,?,?)",t,target,a.get("id"),receipt.get("sku_id"),receipt.get("warehouse_id"),quantity);return "APPLIED";
+ }
+}

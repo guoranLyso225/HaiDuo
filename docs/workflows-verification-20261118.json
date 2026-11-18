@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-18",
+  "timezone": "Asia/Hong_Kong",
+  "source": "uncommitted working tree",
+  "scope": [
+    "L1 business write approvals",
+    "detailed editing, archival and compensating inventory entries",
+    "independent administrator privilege approvals"
+  ],
+  "backend": {
+    "tests": 83,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "services/api/target/workflow-full-backend-accepted.log"
+  },
+  "postgresql_workflow_tests": {
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "services/api/target/workflow-pg-accepted.log"
+  },
+  "browser": {
+    "tests": 21,
+    "passed": 21,
+    "duration": "2.0m",
+    "environment": "local Chrome, PostgreSQL, Redis, RabbitMQ, OpenSearch, pgvector, FIXED_DEMO AI",
+    "log": "services/api/target/workflow-full-browser.log"
+  },
+  "vitest": {
+    "tests": 4,
+    "passed": 4
+  },
+  "build": {
+    "java": "21.0.4",
+    "maven_verify": "passed",
+    "typescript_vite": "passed"
+  },
+  "not_run": [
+    "remote GitHub Actions",
+    "new k6 benchmark",
+    "real Shopify",
+    "real S3",
+    "real model calls",
+    "production deployment"
+  ],
+  "boundaries": [
+    "physical returns do not refund platform payments or rewrite historical financial confirmations",
+    "cross-warehouse returns, exchanges, batch tracking and accounting reconciliation deferred"
+  ],
+  "default_core_browser": {
+    "tests": 4,
+    "passed": 4,
+    "duration": "38.7s",
+    "log": "services/api/target/workflow-default-browser.log"
+  },
+  "final_runtime": {
+    "healthy_services": [
+      "web",
+      "api",
+      "postgres",
+      "redis",
+      "rabbitmq"
+    ],
+    "stopped_enhancements": [
+      "vector",
+      "opensearch"
+    ],
+    "volumes_preserved": true
+  }
+}

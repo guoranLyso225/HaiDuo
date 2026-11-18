@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-18",
+  "source": "uncommitted working tree",
+  "change": "Approval closure after applicant role revocation or membership removal",
+  "backend": {
+    "tests": 86,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "services/api/target/review-full-backend.log"
+  },
+  "targeted_postgresql": {
+    "tests": 21,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "services/api/target/review-approval-pg.log"
+  },
+  "browser": {
+    "executed": 7,
+    "passed": 7,
+    "duration": "44.9s",
+    "log": "services/api/target/review-browser.log"
+  },
+  "not_run": [
+    "full 22 browser tests in this review",
+    "frontend rebuild or Vitest in this backend-only review",
+    "remote GitHub Actions",
+    "external integrations"
+  ],
+  "release_check": "passed; scoped file and credential-format checks, not a complete security audit",
+  "git_mutations": "none; no staging, commits or push"
+}

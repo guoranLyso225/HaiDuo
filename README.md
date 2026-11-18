@@ -2,7 +2,7 @@
 
 首次使用请阅读[中文使用手册](docs/USER_GUIDE.md)：启动、登录、CSV订单、库存发货、利润、Woo及常见问题。
 
-中文多租户跨境运营学习与求职展示项目。当前本地已验证核心业务和WooCommerce联调；后续编辑、撤销和分级审批仍为设计提案。构建及验收范围见[实施记录](docs/IMPLEMENTATION_PLAN.md)，正式文档入口见[文档导航](docs/README.md)。
+中文多租户跨境运营学习与求职展示项目。当前本地已验证核心业务和WooCommerce联调；已实现SKU编辑及分级审批首批，详见[审批操作手册](docs/SKU_APPROVALS.md)；新增[释放预占及入库冲销审批](docs/INVENTORY_CORRECTIONS.md)；另已实现[CSV预览及批次撤销](docs/CSV_IMPORT_BATCHES.md)；其他撤销和通用审批仍为后续设计。构建及验收范围见[实施记录](docs/IMPLEMENTATION_PLAN.md)，正式文档入口见[文档导航](docs/README.md)。
 
 支持多企业/四角色、会话登录/CSRF、多SKU商品、模拟店铺/映射、多行CSV订单、多仓预占/发货/流水、模拟轨迹、不可变汇率与人工实际贡献、看板、审计、导出、Outbox/同步、搜索、知识库、PWA和监控。
 
@@ -137,3 +137,7 @@ AI助手中管理员可重建当前企业已有向量索引并清理孤立记录
 ## WooCommerce免费本地联调
 
 一键启动./infra/start-woocommerce-link.ps1，海舵8088、店铺8090。ConsumerKey/Secret和Webhook密钥仅保存在忽略的.woo-credentials.json；配置、测试夹具边界及46项后端/13项原浏览器/1项Woo浏览器、自动回调和398元闭环证据见[联调报告](docs/WOOCOMMERCE_INTEGRATION.md)。新增CI作业待本轮代码推送后远程验收。
+
+新增业务审批、商品/订单/库存详细编辑与纠错、独立权限审核的操作步骤见 [业务审批与纠错手册](docs/BUSINESS_WORKFLOWS.md)。本轮实际验收摘要见 [验证记录](docs/workflows-verification-20261118.json)。
+
+提交前可运行 `node infra/check-release.mjs` 进行只读检查；提交和远程验收步骤见 [GitHub提交手册](docs/GITHUB_RELEASE.md)。

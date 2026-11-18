@@ -20,7 +20,7 @@ test('登录、商品、导入、预占、发货和利润',async({page})=>{
  await page.getByRole('menuitem',{name:'订单',exact:true}).click();
  await page.getByLabel('选择CSV文件').setInputFiles({name:'orders.csv',mimeType:'text/csv',buffer:Buffer.from(`\uFEFFstore,order_no,sku,quantity,net,currency,rate\nmock,${code},${code},1,100.00,USD,7.2`)});
  await expect(page.locator('textarea')).toHaveValue(new RegExp(code));
- await page.getByRole('button',{name:'导入CSV文本'}).click();
+ await page.getByRole('button',{name:'导入CSV文本'}).click();await page.getByRole('dialog',{name:'CSV导入预览'}).getByRole('button',{name:'确认导入',exact:true}).click();await expect(page.getByRole('dialog',{name:'CSV导入预览'})).not.toBeVisible();
  const row=page.getByRole('row').filter({hasText:code});await expect(row).toContainText('NEW');
  await row.getByRole('button',{name:/^预\s*占$/,exact:true}).click();await expect(row).toContainText('RESERVED');
 

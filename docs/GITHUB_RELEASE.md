@@ -45,3 +45,9 @@ git push origin HEAD
 本地验收不能代替远程CI。失败时保存作业名、首个错误、提交SHA及相关测试日志；修复后创建新提交，再核对新提交的运行。不要把旧提交的绿色结果视为新代码已经通过。
 
 后续Shopify、真实模型、真实S3及生产部署继续按外部依赖清单配置；远程CI中的固定演示和模拟契约不代表这些真实服务联调完成。
+
+## Docker Hub下载镜像时返回500
+
+若启动日志最早出现 `registry-1.docker.io` 的 `500 Internal Server Error`，是镜像仓库/网络阶段失败。可以在Actions重跑失败作业；使用本轮改进则需提交并推送新脚本。新脚本将镜像构建与启动分开，对明确的暂时网络故障最多重试三次，编译失败不重试。若持续失败，查看启动步骤最早的错误及 `services/api/target/woo-link-diagnostics/image-build.log`；容器尚未创建时，PostgreSQL未运行是后续结果。不要将旧提交的重新运行当作已应用新修复。
+
+本地可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File infra/verify-compose-phase.ps1` 验证重试策略；Linux/macOS安装PowerShell后使用 `pwsh -NoProfile -File infra/verify-compose-phase.ps1`，本轮Linux执行待新CI验证。诊断使用 `infra/diagnose-woocommerce-link.ps1`，数据库未运行时跳过SQL。

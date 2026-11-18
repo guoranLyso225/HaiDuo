@@ -1,5 +1,6 @@
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'compose-phase.ps1')
 Push-Location $root
 try{
  if(!(Test-Path .env)){throw 'Configure the existing HaiDuo .env first'}
@@ -17,10 +18,17 @@ try{
   if($LASTEXITCODE){throw 'Failed to prepare read-only test credentials'}
   try{$object=($credentials-join "`n")|ConvertFrom-Json}catch{throw 'Invalid credential response; details suppressed'}
   [IO.File]::WriteAllText((Join-Path $root '.woo-credentials.json'),($object|ConvertTo-Json))
-  & $docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml up -d --build --wait --wait-timeout 180
-  if($LASTEXITCODE){throw 'HaiDuo linked services failed to start'}
+  $diagnostics=Join-Path $root 'services/api/target/woo-link-diagnostics'
+  $compose=@('compose','--progress','plain','--env-file','.env','-f','infra/compose.yml','-f','infra/compose.woo-link.yml')
+  $code=Invoke-HaiDuoComposePhase -DockerExecutable $docker -DockerArguments ($compose+@('build','api','web')) -LogPath (Join-Path $diagnostics 'image-build.log') -MaxAttempts 3
+  if($code){throw "HaiDuo image build failed (exit $code); see services/api/target/woo-link-diagnostics/image-build.log"}
+  $code=Invoke-HaiDuoComposePhase -DockerExecutable $docker -DockerArguments ($compose+@('up','-d','--no-build','--wait','--wait-timeout','180')) -LogPath (Join-Path $diagnostics 'service-start.log')
+  if($code){throw "HaiDuo linked service startup failed (exit $code); see services/api/target/woo-link-diagnostics/service-start.log"}
   & $docker compose --env-file .woo.env -f infra/compose.woocommerce.yml --profile webhooks up -d cron
   if($LASTEXITCODE){throw 'WooCommerce webhook worker failed to start'}
  }finally{$ErrorActionPreference=$saved}
  Write-Output 'Ready: HaiDuo localhost:8088; Woo localhost:8090. Configure the Woo store as ADMIN using local .woo-credentials.json; do not commit credentials.'
+}catch{
+ try{& (Join-Path $PSScriptRoot 'diagnose-woocommerce-link.ps1')}catch{Write-Warning 'Additional diagnostics unavailable; original error preserved'}
+ throw
 }finally{Pop-Location}

@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-18",
+  "run": "https://github.com/guoranLyso225/HaiDuo/actions/runs/44242587801",
+  "commit": "cfee4c7bd4f7d46c704fdcf4bfe40f6f514565ef",
+  "rootCause": "Docker Hub returned HTTP 500 while downloading the pinned Node base image layer",
+  "evidence": "complete startup log supplied by user; public job page confirmed failed step",
+  "secondaryFailure": "unconditional PostgreSQL exec diagnostics when no core containers were started",
+  "changes": [
+    "separate build and startup phases",
+    "bounded retry for explicit transient image registry/network failures only",
+    "preserve attempt output and exit codes",
+    "skip SQL diagnostics when PostgreSQL is not running"
+  ],
+  "verified": {
+    "powershell_syntax": true,
+    "workflow_yaml": true,
+    "retry_fixtures": {
+      "transient_attempts": 3,
+      "persistent_attempts": 3,
+      "compiler_attempts": 1,
+      "success_attempts": 1,
+      "unauthorized_attempts": 1,
+      "mixed_compiler_network_attempts": 1
+    },
+    "local_image_build": "passed with existing cache",
+    "absent_project_diagnostics": "passed, exit 0, SQL skipped",
+    "release_check": "passed"
+  },
+  "not_verified": [
+    "new remote CI run",
+    "Linux pwsh execution locally",
+    "full WooCommerce linked startup in this change",
+    "recovery of external Docker Hub service"
+  ]
+}

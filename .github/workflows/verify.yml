@@ -11,6 +11,9 @@ jobs:
       - uses: actions/setup-node@v5.0.0
         with:
           node-version: '24.22.1'
+      - name: Verify bounded image-build retry policy
+        shell: pwsh
+        run: ./infra/verify-compose-phase.ps1
       - name: Prepare local-only integration credentials
         run: |
           password=$(openssl rand -hex 24)
@@ -37,9 +40,8 @@ jobs:
         run: ./infra/verify-woocommerce-webhooks.ps1 -QueueOnly
       - if: always()
         name: Diagnose local platform event processing
-        run: |
-          docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml logs --tail 400 api
-          docker compose --env-file .env -f infra/compose.yml exec -T postgres psql -U haiduo -d haiduo -c "select kind,status,count(*) from outbox_event group by kind,status order by kind,status; select type,status,count(*) from sync_job group by type,status; select store,external_id,status,payment_status from sales_order order by created_at;"
+        shell: pwsh
+        run: ./infra/diagnose-woocommerce-link.ps1
       - if: always()
         run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml down
       - if: always()

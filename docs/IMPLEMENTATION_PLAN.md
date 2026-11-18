@@ -362,3 +362,15 @@ CSV第三批最终收尾：完整17项浏览器复验通过（csv-batch-final-br
 实际验收：review-approval-pg.log真实PostgreSQL21项通过，覆盖三类审批调岗/退出企业后的批准拒绝、驳回/撤回和无业务副作用；review-full-backend.log完整86项零失败/错误/跳过，Maven verify构建通过（1分37秒）。review-browser.log本轮7项通过44.9秒，包括新增“仓库员工调岗后可撤回申请，管理员可驳回且库存不变”及原SKU、纠错、通用审批流程。前端业务代码本轮未改，不重复声称运行前端构建或Vitest；上一批21项浏览器全量、4项Vitest为历史证据，本轮没有执行完整22项浏览器。修复后的API已重建，核心五服务健康，原数据卷保留。
 
 交付准备：新增infra/check-release.mjs，只读检查跟踪文件及未忽略新文件中的私有配置/产物、常见凭据格式、交付锁文件、29个连续迁移及Git差异格式。检查实际通过，未发现所覆盖规则的异常；不等同完整安全审计。frontend CI加入该检查；工作流/OpenAPI本地YAML解析通过。新增GITHUB_RELEASE.md，包含不进入(END)分页的审查命令及提交/远程Actions步骤。未暂存、提交、推送或运行新远程CI。下一步按该手册审核并推送当前完整功能集，然后核对新提交的远程作业；外部账号/模型/S3/部署仍按既有依赖清单处理。
+
+## WooCommerce CI镜像仓库500与诊断改进（2026-11-18）
+
+用户提供运行44242587801（提交cfee4c7bd4f7d46c704fdcf4bfe40f6f514565ef）。公开页面可定位WooCommerce作业134593780121，匿名API限流、日志分片无法读取，最终依据用户补充完整启动日志确认：固定node:24.22.1-alpine镜像层下载时registry-1.docker.io返回500 Internal Server Error。WooCommerce自身已初始化成功；海舵镜像构建被中断，容器尚未创建，随后诊断无条件exec PostgreSQL产生第二条“service postgres is not running”。不能据此认定Java、迁移或业务测试失败。
+
+代码已编写：start-woocommerce-link拆分明确的镜像构建与容器启动阶段，构建使用plain输出并保留各次原始日志和退出码。只有明确的镜像网络/仓库故障（429/500/502/503/504、TLS/连接重置/超时）最多3次重试，间隔5/10秒；编译错误不重试，容器启动不自动重复执行。诊断脚本收集服务状态及有限日志，不打印Compose环境或凭据；PostgreSQL未运行时跳过SQL，诊断步骤不覆盖原始失败。CI新增重试策略夹具检查，保持所有固定镜像版本，不改成latest。
+
+已实际验证：四个PowerShell脚本语法及CI YAML解析通过。verify-compose-phase在Windows PowerShell运行四种场景：前两次500第三次成功（3次）、持续500（3次后退出9）、编译失败（1次退出2）、普通成功（1次），均符合预期。原始输出和退出码保留。通过新阶段调用实际构建API/web镜像成功（ci-link-local-build.log），其中前端TypeScript/Vite构建执行通过；本地缓存不能等同GitHub冷构建。对不存在的隔离Compose项目执行诊断，正常输出“PostgreSQL未运行，跳过SQL”，exit0；未创建或修改任何测试项目容器。只读交付检查通过。证据日志在services/api/target/ci-*，摘要ci-woocommerce-registry-20261118.json。
+
+未验证：本机没有pwsh，未本地执行Linux pwsh；新增CI夹具将在Ubuntu运行。没有重跑完整WooCommerce建店联调或新远程CI，业务代码未改，不重跑数据库/浏览器全量。不宣称外部Docker Hub已经恢复；持续网络故障三次后仍会清晰失败。下一步提交本轮脚本/工作流并推送，核对新提交的WooCommerce作业；仅重跑旧提交不会应用新脚本。
+
+重试分类补充验证：额外增加401（URL内含500字样）和网络警告同时伴随编译错误两种场景，均只尝试1次，保留原始9/2退出码；最终六种策略场景全部通过（ci-compose-phase-check.log）。避免把镜像层哈希中的数字误判为HTTP状态，编译失败优先停止。

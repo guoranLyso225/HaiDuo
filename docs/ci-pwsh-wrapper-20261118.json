@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-18",
+  "cause": "Successful retry assertions left the final negative fixture native exit code in LASTEXITCODE; GitHub pwsh wrapper forwarded it",
+  "reproduced": {
+    "all_assertions_passed": true,
+    "wrapper_exit_before": 2,
+    "wrapper_exit_after": 0,
+    "failing_assertion_wrapper_exit": 1
+  },
+  "cleanup": {
+    "source": "actual Bash scripts extracted from workflow YAML",
+    "docker": "mock function; no real containers stopped",
+    "missing_env_exits": [
+      0,
+      0
+    ],
+    "present_env_mock_docker_failure_exits": [
+      7,
+      7
+    ]
+  },
+  "diagnostics_missing_env": "simulated without altering real .env files; exit 0",
+  "changes": [
+    "explicit successful script exit after all assertions",
+    "guard cleanup on matching environment file",
+    "guard diagnostics on environment initialization"
+  ],
+  "not_run": [
+    "new remote CI",
+    "business tests or frontend build for this script-only change"
+  ]
+}

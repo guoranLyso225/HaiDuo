@@ -51,3 +51,7 @@ git push origin HEAD
 若启动日志最早出现 `registry-1.docker.io` 的 `500 Internal Server Error`，是镜像仓库/网络阶段失败。可以在Actions重跑失败作业；使用本轮改进则需提交并推送新脚本。新脚本将镜像构建与启动分开，对明确的暂时网络故障最多重试三次，编译失败不重试。若持续失败，查看启动步骤最早的错误及 `services/api/target/woo-link-diagnostics/image-build.log`；容器尚未创建时，PostgreSQL未运行是后续结果。不要将旧提交的重新运行当作已应用新修复。
 
 本地可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File infra/verify-compose-phase.ps1` 验证重试策略；Linux/macOS安装PowerShell后使用 `pwsh -NoProfile -File infra/verify-compose-phase.ps1`，本轮Linux执行待新CI验证。诊断使用 `infra/diagnose-woocommerce-link.ps1`，数据库未运行时跳过SQL。
+
+## 重试策略全部PASS但步骤失败
+
+策略检查会故意生成500、401、编译错误等模拟输出，应以最终断言和步骤退出码判断结果。脚本成功路径已显式exit0，防止最后一个模拟失败的LASTEXITCODE被GitHub pwsh包装器转发。前置检查失败时，凭据初始化被跳过，.env/.woo.env缺失是后续结果；清理和诊断现在会跳过未初始化环境，无需手动补建这些私有文件。提交新修复后再运行新提交的Actions。

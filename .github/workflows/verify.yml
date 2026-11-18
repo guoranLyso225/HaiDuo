@@ -43,9 +43,23 @@ jobs:
         shell: pwsh
         run: ./infra/diagnose-woocommerce-link.ps1
       - if: always()
-        run: docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml down
+        name: Stop HaiDuo services if initialized
+        shell: bash
+        run: |
+          if [ -f .env ]; then
+            docker compose --env-file .env -f infra/compose.yml -f infra/compose.woo-link.yml down
+          else
+            echo 'HaiDuo environment was not initialized; cleanup skipped.'
+          fi
       - if: always()
-        run: docker compose --env-file .woo.env -f infra/compose.woocommerce.yml --profile webhooks down
+        name: Stop WooCommerce services if initialized
+        shell: bash
+        run: |
+          if [ -f .woo.env ]; then
+            docker compose --env-file .woo.env -f infra/compose.woocommerce.yml --profile webhooks down
+          else
+            echo 'WooCommerce environment was not initialized; cleanup skipped.'
+          fi
   monitoring:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

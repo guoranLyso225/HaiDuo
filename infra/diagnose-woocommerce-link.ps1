@@ -17,14 +17,18 @@ try{
  Save-Diagnostic 'docker-version' @('version','--format','{{.Server.Version}}')
  $core=@('compose','-p',$CoreProjectName,'--env-file','.env','-f','infra/compose.yml','-f','infra/compose.woo-link.yml')
  $woo=@('compose','-p',$WooProjectName,'--env-file','.woo.env','-f','infra/compose.woocommerce.yml')
- Save-Diagnostic 'core-state' ($core+@('ps','-a'))
- Save-Diagnostic 'core-services' ($core+@('logs','--no-color','--tail','200','postgres','redis','rabbitmq','api','web'))
- Save-Diagnostic 'woo-state' ($woo+@('--profile','webhooks','ps','-a'))
- Save-Diagnostic 'woo-services' ($woo+@('--profile','webhooks','logs','--no-color','--tail','100','db','shop','cron'))
- $database=& $dockerExecutable @core ps --status running -q postgres 2>$null
- if($LASTEXITCODE-eq 0 -and $database){
-  Save-Diagnostic 'event-metadata' ($core+@('exec','-T','postgres','psql','-U','haiduo','-d','haiduo','-c','select kind,status,count(*) from outbox_event group by kind,status order by kind,status; select type,status,count(*) from sync_job group by type,status;'))
- }else{Write-Output 'PostgreSQL is not running; SQL diagnostics skipped. Check image-build and core service logs first.'}
+ if(Test-Path -LiteralPath .env){
+  Save-Diagnostic 'core-state' ($core+@('ps','-a'))
+  Save-Diagnostic 'core-services' ($core+@('logs','--no-color','--tail','200','postgres','redis','rabbitmq','api','web'))
+  $database=& $dockerExecutable @core ps --status running -q postgres 2>$null
+  if($LASTEXITCODE-eq 0 -and $database){
+   Save-Diagnostic 'event-metadata' ($core+@('exec','-T','postgres','psql','-U','haiduo','-d','haiduo','-c','select kind,status,count(*) from outbox_event group by kind,status order by kind,status; select type,status,count(*) from sync_job group by type,status;'))
+  }else{Write-Output 'PostgreSQL is not running; SQL diagnostics skipped. Check image-build and core service logs first.'}
+ }else{Write-Output 'HaiDuo environment was not initialized; core diagnostics skipped.'}
+ if(Test-Path -LiteralPath .woo.env){
+  Save-Diagnostic 'woo-state' ($woo+@('--profile','webhooks','ps','-a'))
+  Save-Diagnostic 'woo-services' ($woo+@('--profile','webhooks','logs','--no-color','--tail','100','db','shop','cron'))
+ }else{Write-Output 'WooCommerce environment was not initialized; store diagnostics skipped.'}
  Write-Output 'Diagnostics collected without printing Compose environment or connection credentials.'
 }finally{Pop-Location}
 # Diagnostics must not replace the original startup/test failure in CI.

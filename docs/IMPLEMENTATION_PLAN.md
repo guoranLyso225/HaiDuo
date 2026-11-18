@@ -374,3 +374,13 @@ CSV第三批最终收尾：完整17项浏览器复验通过（csv-batch-final-br
 未验证：本机没有pwsh，未本地执行Linux pwsh；新增CI夹具将在Ubuntu运行。没有重跑完整WooCommerce建店联调或新远程CI，业务代码未改，不重跑数据库/浏览器全量。不宣称外部Docker Hub已经恢复；持续网络故障三次后仍会清晰失败。下一步提交本轮脚本/工作流并推送，核对新提交的WooCommerce作业；仅重跑旧提交不会应用新脚本。
 
 重试分类补充验证：额外增加401（URL内含500字样）和网络警告同时伴随编译错误两种场景，均只尝试1次，保留原始9/2退出码；最终六种策略场景全部通过（ci-compose-phase-check.log）。避免把镜像层哈希中的数字误判为HTTP状态，编译失败优先停止。
+
+## GitHub pwsh包装器退出码与未初始化清理修复（2026-11-18）
+
+用户提供Ubuntu CI六种重试场景均PASS、步骤最终失败的日志。确认此前验证方式仅使用PowerShell -File，漏掉GitHub pwsh包装器对LASTEXITCODE的转发：最后一个故意失败的mixed夹具返回2，所有断言通过后仍残留该非零退出码。使用实际脚本加GitHub风格包装器在本机复现：输出全部PASS但wrapper exit2。此问题属于验证脚本退出约定，之前将策略夹具直接加入CI时未覆盖该包装行为。
+
+代码已修复：verify-compose-phase只有全部断言通过到达末尾才显式exit0，任何断言抛错仍失败。WooCommerce两条always清理步骤在对应.env/.woo.env存在时才调用Compose down；尚未初始化则明确跳过，不生成假配置，也不吞掉已初始化环境中的真实Docker失败。诊断脚本同样先检查环境文件，缺少时跳过对应日志及SQL。
+
+已实际验证：services/api/target/ci-phase-wrapper-before.log记录修复前exit2；ci-phase-wrapper-after.log记录修复后六种策略场景通过且GitHub风格wrapper exit0。故意改变期望次数的负向断言仍返回exit1（ci-phase-wrapper-negative.log），没有用成功退出掩盖断言失败。直接从工作流YAML提取两条真实Bash清理脚本，在隔离临时目录中使用假的docker函数执行：缺环境文件两种情况都exit0并跳过；存在文件且Docker模拟失败时两种情况都保留exit7，未操作真实容器。模拟缺少两个环境文件运行诊断，输出跳过、exit0，不删除或修改本机真实.env。日志均保留在忽略目录services/api/target。
+
+本轮只改脚本和CI，不重跑业务测试/构建；上轮后端86项及浏览器7项不是本轮重新执行。YAML/PowerShell语法及提交文件检查按本轮核对。未推送或新跑远程CI；需提交修复后核对新提交的运行。用户提供的Linux日志可证明夹具执行到全部PASS，不能当作整步或整作业已通过。

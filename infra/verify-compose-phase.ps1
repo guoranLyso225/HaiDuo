@@ -30,3 +30,6 @@ foreach($case in @(@{Name='transient';Attempts=3;Code=0},@{Name='persistent';Att
  Write-Output "PASS $($case.Name): exit=$code attempts=$attempts"
 }
 Write-Output 'PASS: bounded registry retries; compiler errors are not retried; original logs and exit codes retained'
+# GitHub's pwsh wrapper forwards LASTEXITCODE. The last negative fixture exits 2
+# by design; only reaching this line means all assertions succeeded.
+exit 0
